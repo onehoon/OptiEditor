@@ -6,6 +6,7 @@
     <RootNamespace>OptiEditor.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <WindowsPackageType>None</WindowsPackageType>

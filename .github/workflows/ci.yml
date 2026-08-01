@@ -11,5 +11,5 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: 10.0.x }
       - run: dotnet restore OptiEditor.sln
-      - run: dotnet build OptiEditor.sln --configuration Release --no-restore
+      - run: dotnet build OptiEditor.sln --configuration Release -p:Platform=x64 --no-restore
       - run: dotnet test tests/OptiEditor.Core.Tests/OptiEditor.Core.Tests.csproj --configuration Release --no-build
