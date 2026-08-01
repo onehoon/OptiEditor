@@ -1,13 +1,12 @@
 name: Release
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: SemVer version (MAJOR.MINOR.PATCH)
-        required: true
-        type: string
+  push:
+    branches: [main]
 permissions:
   contents: write
+concurrency:
+  group: release-main
+  cancel-in-progress: false
 jobs:
   release:
     runs-on: windows-latest
@@ -16,12 +15,15 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: 10.0.x }
-      - run: |
-          if ('${{ inputs.version }}' -notmatch '^\d+\.\d+\.\d+$') { throw 'Version must be MAJOR.MINOR.PATCH.' }
-          if (git tag -l "v${{ inputs.version }}") { throw 'Release tag already exists.' }
+      - id: version
+        shell: pwsh
+        run: |
+          $latest = git tag -l 'v0.1.*' --sort=-version:refname | Select-Object -First 1
+          $patch = if ($latest -match '^v0\.1\.(\d+)$') { [int]$Matches[1] + 1 } else { 0 }
+          "version=0.1.$patch" >> $env:GITHUB_OUTPUT
       - run: dotnet tool restore
       - run: dotnet restore OptiEditor.sln
       - run: dotnet test tests/OptiEditor.Core.Tests/OptiEditor.Core.Tests.csproj --configuration Release
-      - run: dotnet publish src/OptiEditor.App/OptiEditor.App.csproj -c Release -r win-x64 --self-contained true -o publish /p:Version=${{ inputs.version }}
-      - run: dotnet vpk pack --packId onehoon.OptiEditor --packVersion ${{ inputs.version }} --packDir publish --mainExe OptiEditor.exe --packTitle OptiEditor --packAuthors onehoon --runtime win10.0.17763-x64
-      - run: dotnet vpk upload github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --publish --releaseName "OptiEditor ${{ inputs.version }}" --tag "v${{ inputs.version }}"
+      - run: dotnet publish src/OptiEditor.App/OptiEditor.App.csproj -c Release -r win-x64 --self-contained true -o publish /p:Version=${{ steps.version.outputs.version }}
+      - run: dotnet vpk pack --packId onehoon.OptiEditor --packVersion ${{ steps.version.outputs.version }} --packDir publish --mainExe OptiEditor.exe --packTitle OptiEditor --packAuthors onehoon --runtime win10.0.17763-x64
+      - run: dotnet vpk upload github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --publish --releaseName "OptiEditor ${{ steps.version.outputs.version }}" --tag "v${{ steps.version.outputs.version }}"
