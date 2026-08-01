@@ -1,0 +1,27 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: SemVer version (MAJOR.MINOR.PATCH)
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 10.0.x }
+      - run: |
+          if ('${{ inputs.version }}' -notmatch '^\d+\.\d+\.\d+$') { throw 'Version must be MAJOR.MINOR.PATCH.' }
+          if (git tag -l "v${{ inputs.version }}") { throw 'Release tag already exists.' }
+      - run: dotnet tool restore
+      - run: dotnet restore OptiEditor.sln
+      - run: dotnet test tests/OptiEditor.Core.Tests/OptiEditor.Core.Tests.csproj --configuration Release
+      - run: dotnet publish src/OptiEditor.App/OptiEditor.App.csproj -c Release -r win-x64 --self-contained true -o publish /p:Version=${{ inputs.version }}
+      - run: dotnet vpk pack --packId onehoon.OptiEditor --packVersion ${{ inputs.version }} --packDir publish --mainExe OptiEditor.exe --packTitle OptiEditor --packAuthors onehoon --runtime win10.0.17763-x64
+      - run: dotnet vpk upload github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --publish --releaseName "OptiEditor ${{ inputs.version }}" --tag "v${{ inputs.version }}"
