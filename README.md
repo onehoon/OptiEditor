@@ -1,0 +1,2 @@
+# OptiEditor
+OptiScaler Configuration Editor
