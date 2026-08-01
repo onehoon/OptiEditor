@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.UI.Dispatching;
 using OptiEditor.App.Services;
 using OptiEditor.Core.Models;
 
@@ -17,13 +18,18 @@ public partial class GamesViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial string LastScanText { get; set; } = "Last scan: never";
     [ObservableProperty] public partial string InstallationCountText { get; set; } = "0 installations";
     private CancellationTokenSource? _cancellation;
+    private readonly DispatcherQueue? _dispatcher = DispatcherQueue.GetForCurrentThread();
     public GamesViewModel()
     {
         AppServices.Installations.InstallationsChanged += OnInstallationsChanged;
         UpdateFromCatalog();
     }
     public void Dispose() => AppServices.Installations.InstallationsChanged -= OnInstallationsChanged;
-    private void OnInstallationsChanged(object? sender, EventArgs args) => UpdateFromCatalog();
+    private void OnInstallationsChanged(object? sender, EventArgs args)
+    {
+        if (_dispatcher is null || _dispatcher.HasThreadAccess) UpdateFromCatalog();
+        else _dispatcher.TryEnqueue(UpdateFromCatalog);
+    }
     public async Task ScanAsync()
     {
         if (AppServices.Installations.IsScanning) return;

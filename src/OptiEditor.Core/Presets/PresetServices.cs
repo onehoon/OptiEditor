@@ -14,7 +14,12 @@ public sealed class UserPresetStore(string? appData = null, IDiagnosticLogger? l
     public async Task<IReadOnlyList<PresetDefinition>> LoadAsync(CancellationToken token = default)
     {
         if (!File.Exists(_path)) return []; try { await using var stream = File.OpenRead(_path); return (await JsonSerializer.DeserializeAsync<List<PresetDefinition>>(stream, cancellationToken: token) ?? []).Where(x => x.Source == PresetSource.User).ToArray(); }
-        catch (JsonException ex) { var invalid = Path.Combine(Path.GetDirectoryName(_path)!, $"presets.invalid-{DateTime.UtcNow:yyyyMMddHHmmss}.json"); File.Move(_path, invalid, true); logger?.Error("Invalid user presets were moved aside.", ex); return []; }
+        catch (JsonException ex)
+        {
+            try { var invalid = Path.Combine(Path.GetDirectoryName(_path)!, $"presets.invalid-{DateTime.UtcNow:yyyyMMddHHmmss}.json"); File.Move(_path, invalid, true); logger?.Error("Invalid user presets were moved aside.", ex); }
+            catch (Exception recoveryException) when (recoveryException is IOException or UnauthorizedAccessException) { logger?.Error("Invalid user presets could not be moved aside.", recoveryException); }
+            return [];
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { logger?.Error("User presets could not be loaded.", ex); return []; }
     }
     public async Task SaveAsync(IEnumerable<PresetDefinition> presets, CancellationToken token = default)

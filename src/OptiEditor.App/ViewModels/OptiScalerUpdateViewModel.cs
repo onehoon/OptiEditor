@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.UI.Dispatching;
 using OptiEditor.App.Services;
 using OptiEditor.Core.Models;
 using OptiEditor.Core.OptiScalerUpdate;
@@ -10,6 +11,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
 {
     private bool _changingBulk;
     private CancellationTokenSource? _operationCancellation;
+    private readonly DispatcherQueue? _dispatcher = DispatcherQueue.GetForCurrentThread();
     public ObservableCollection<OptiScalerUpdateItemViewModel> Items { get; } = [];
     [ObservableProperty] public partial SourceOptiScalerBinary? Source { get; set; }
     [ObservableProperty] public partial string? SourceError { get; set; }
@@ -33,7 +35,11 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
         AppServices.Installations.InstallationsChanged -= OnInstallationsChanged;
         foreach (var item in Items) item.PropertyChanged -= OnItemPropertyChanged;
     }
-    private void OnInstallationsChanged(object? sender, EventArgs args) => RefreshCatalog();
+    private void OnInstallationsChanged(object? sender, EventArgs args)
+    {
+        if (_dispatcher is null || _dispatcher.HasThreadAccess) RefreshCatalog();
+        else _dispatcher.TryEnqueue(RefreshCatalog);
+    }
 
     public bool IsBulkMode => IsAllSelected || IsV09Selected || IsV10Selected;
     public bool IsIndividualSelectionEnabled => !IsBulkMode && !IsBusy && !AppServices.Installations.IsScanning;
