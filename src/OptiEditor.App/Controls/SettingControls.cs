@@ -79,8 +79,16 @@ public sealed class ShortcutSettingControl : SettingControlBase
     private void AddChoice(Panel panel, string label, string value)
     {
         var button = new Button { Content = label };
-        button.Click += (_, _) => SetValue(value);
+        button.Click += (_, _) => ApplyChoice(value);
         panel.Children.Add(button);
+    }
+
+    private void ApplyChoice(string value)
+    {
+        _isCapturing = false;
+        _captureHint.Text = "Enter a raw value, or use Capture Key.";
+        _box.Text = value;
+        SetValue(value);
     }
 
     private void BeginCapture()

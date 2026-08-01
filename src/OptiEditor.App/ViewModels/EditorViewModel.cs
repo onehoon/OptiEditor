@@ -25,9 +25,11 @@ public partial class EditorSettingItemViewModel(SettingValueBinding binding) : O
     public bool IsUnknownValue => binding.IsUnknownValue;
     public bool IsModified => binding.IsModified;
     public bool HasBlockingValidationError => binding.HasValidationError;
+    public string? BlockingValidationMessage => HasBlockingValidationError ? ValidationError : null;
     public bool HasUnknownValueWarning => IsUnknownValue && !IsModified;
-    public void Update() { binding.SetRawValue(CurrentRawValue); ValidationError = binding.ValidationError; OnPropertyChanged(nameof(IsModified)); OnPropertyChanged(nameof(IsUnknownValue)); OnPropertyChanged(nameof(HasBlockingValidationError)); OnPropertyChanged(nameof(HasUnknownValueWarning)); }
-    public void Revert() { binding.Revert(); CurrentRawValue = binding.CurrentRawValue; ValidationError = binding.ValidationError; OnPropertyChanged(nameof(IsModified)); OnPropertyChanged(nameof(IsUnknownValue)); OnPropertyChanged(nameof(HasBlockingValidationError)); OnPropertyChanged(nameof(HasUnknownValueWarning)); }
+    public string? UnknownValueWarningMessage => HasUnknownValueWarning ? "Unknown value will be preserved unless changed." : null;
+    public void Update() { binding.SetRawValue(CurrentRawValue); ValidationError = binding.ValidationError; OnPropertyChanged(nameof(IsModified)); OnPropertyChanged(nameof(IsUnknownValue)); OnPropertyChanged(nameof(HasBlockingValidationError)); OnPropertyChanged(nameof(BlockingValidationMessage)); OnPropertyChanged(nameof(HasUnknownValueWarning)); OnPropertyChanged(nameof(UnknownValueWarningMessage)); }
+    public void Revert() { binding.Revert(); CurrentRawValue = binding.CurrentRawValue; ValidationError = binding.ValidationError; OnPropertyChanged(nameof(IsModified)); OnPropertyChanged(nameof(IsUnknownValue)); OnPropertyChanged(nameof(HasBlockingValidationError)); OnPropertyChanged(nameof(BlockingValidationMessage)); OnPropertyChanged(nameof(HasUnknownValueWarning)); OnPropertyChanged(nameof(UnknownValueWarningMessage)); }
     public SettingValueBinding Binding => binding;
 }
 
@@ -62,7 +64,9 @@ public partial class EditorViewModel : ObservableObject
     public PresetApplicationPreview? CreatePresetPreview(PresetDefinition preset) => _session is null || Installation is null ? null : new PresetPreviewService(AppServices.Schemas).Create(preset, Installation.SchemaFamily, _session.Document);
     public async Task SaveAsync()
     {
-        if (_session is null || !CanSave) return; IsBusy = true;
+        if (_session is null) return;
+        if (!CanSave) { if (Settings.Any(x => x.HasBlockingValidationError)) StatusText = "Correct invalid setting values before saving."; return; }
+        IsBusy = true;
         try { foreach (var item in Settings.Where(x => x.IsModified)) _session.Document.ApplyPatch(item.Binding.ToPatch()); var result = await AppServices.IniFiles.SaveAsync(_session.Document, _session.Snapshot); if (!result.Success) { StatusText = result.Error ?? "Settings could not be saved."; return; } await LoadAsync(Installation!); StatusText = "OptiScaler settings were saved successfully."; }
         catch (Exception ex) { AppServices.Logger.Error("Editor save failed.", ex); StatusText = "Settings could not be saved."; }
         finally { IsBusy = false; OnPropertyChanged(nameof(CanSave)); }
