@@ -17,7 +17,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <TitleBar x:Name="AppTitleBar" Title="OptiEditor" />
-        <NavigationView x:Name="Navigation" Grid.Row="1" PaneDisplayMode="Left" SelectionChanged="Navigation_SelectionChanged">
+        <NavigationView x:Name="Navigation" Grid.Row="1" PaneDisplayMode="Left" IsSettingsVisible="False" SelectionChanged="Navigation_SelectionChanged">
             <NavigationView.MenuItems>
                 <NavigationViewItem Content="Games" Tag="Games" IsSelected="True" />
                 <NavigationViewItem Content="Presets" Tag="Presets" />
