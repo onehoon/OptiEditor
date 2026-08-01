@@ -2,6 +2,9 @@
 
 OptiEditor is a Windows desktop utility for discovering, configuring, presetting, and locally updating existing [OptiScaler](https://github.com/optiscaler/OptiScaler) installations.
 
+> [!IMPORTANT]
+> **OptiEditor is an independent community project. It is not an official OptiScaler application and is not developed, distributed, or supported by the OptiScaler project.**
+
 The configuration editor currently supports **OptiScaler 0.9.x and 0.10.x**. The installed version family is detected from the OptiScaler binary `FileVersion`; users do not select the version manually.
 
 ## Features
@@ -77,15 +80,16 @@ OptiScaler Update does not compare source and installed versions. It permits upg
 
 - Windows 10 version 1809, build 17763 or later, or Windows 11
 - x64 Windows
-- [Windows App Runtime 2.3.1 x64](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/downloads), installed separately by the user
 - One or more existing OptiScaler installations to scan and edit
 
 ## Installation
 
-1. Install **Windows App Runtime 2.3.1 x64** from the Microsoft download page linked above.
-2. Open the [OptiEditor Releases](https://github.com/onehoon/OptiEditor/releases) page.
-3. Download and run the latest Velopack Setup executable.
-4. Start OptiEditor and add the folders that contain your game installations.
+1. Open the [OptiEditor Releases](https://github.com/onehoon/OptiEditor/releases) page.
+2. Download and run the latest Velopack Setup executable.
+3. Start OptiEditor and add the folders that contain your game installations.
+
+> [!NOTE]
+> OptiEditor requires **Windows App Runtime 2.3.1 x64**, which is already installed on many Windows systems. If OptiEditor does not start, install it from the [Microsoft Windows App SDK download page](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/downloads) and try again.
 
 The Setup package handles the required .NET Desktop Runtime. Windows App Runtime is not installed automatically by OptiEditor.
 
