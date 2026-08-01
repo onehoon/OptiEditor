@@ -23,8 +23,10 @@
                 <NavigationViewItem Content="Presets" Tag="Presets" />
                 <NavigationViewItem Content="OptiScaler Update" Tag="OptiScalerUpdate" />
                 <NavigationViewItem Content="Folders" Tag="Folders" />
-                <NavigationViewItem Content="Settings" Tag="Settings" />
             </NavigationView.MenuItems>
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem Content="Settings" Tag="Settings" />
+            </NavigationView.FooterMenuItems>
             <Frame x:Name="RootFrame" />
         </NavigationView>
     </Grid>

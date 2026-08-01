@@ -30,7 +30,7 @@ public sealed partial class MainWindow : Window
         RootFrame.Navigate(item.Tag switch
         {
             "Games" => typeof(GamesPage), "Folders" => typeof(FoldersPage), "OptiScalerUpdate" => typeof(OptiScalerUpdatePage),
-            "Presets" => typeof(PresetsPage), _ => typeof(PlaceholderPage)
+            "Presets" => typeof(PresetsPage), "Settings" => typeof(SettingsPage), _ => typeof(PlaceholderPage)
         }, item.Tag);
     }
 }
