@@ -24,8 +24,10 @@ public partial class EditorSettingItemViewModel(SettingValueBinding binding) : O
     [ObservableProperty] public partial string? ValidationError { get; set; } = binding.ValidationError;
     public bool IsUnknownValue => binding.IsUnknownValue;
     public bool IsModified => binding.IsModified;
-    public void Update() { binding.SetRawValue(CurrentRawValue); ValidationError = binding.ValidationError; OnPropertyChanged(nameof(IsModified)); OnPropertyChanged(nameof(IsUnknownValue)); }
-    public void Revert() { binding.Revert(); CurrentRawValue = binding.CurrentRawValue; ValidationError = null; OnPropertyChanged(nameof(IsModified)); }
+    public bool HasBlockingValidationError => binding.HasValidationError;
+    public bool HasUnknownValueWarning => IsUnknownValue && !IsModified;
+    public void Update() { binding.SetRawValue(CurrentRawValue); ValidationError = binding.ValidationError; OnPropertyChanged(nameof(IsModified)); OnPropertyChanged(nameof(IsUnknownValue)); OnPropertyChanged(nameof(HasBlockingValidationError)); OnPropertyChanged(nameof(HasUnknownValueWarning)); }
+    public void Revert() { binding.Revert(); CurrentRawValue = binding.CurrentRawValue; ValidationError = binding.ValidationError; OnPropertyChanged(nameof(IsModified)); OnPropertyChanged(nameof(IsUnknownValue)); OnPropertyChanged(nameof(HasBlockingValidationError)); OnPropertyChanged(nameof(HasUnknownValueWarning)); }
     public SettingValueBinding Binding => binding;
 }
 
@@ -36,7 +38,7 @@ public partial class EditorViewModel : ObservableObject
     [ObservableProperty] public partial string StatusText { get; set; } = "Loading settings...";
     [ObservableProperty] public partial bool IsBusy { get; set; }
     private IniEditorSession? _session;
-    public bool IsDirty => Settings.Any(x => x.IsModified); public bool CanSave => IsDirty && !Settings.Any(x => x.ValidationError is not null) && !IsBusy;
+    public bool IsDirty => Settings.Any(x => x.IsModified); public bool CanSave => IsDirty && !Settings.Any(x => x.HasBlockingValidationError) && !IsBusy;
     public async Task LoadAsync(OptiInstallation installation)
     {
         IsBusy = true; try { Installation = installation; var provider = AppServices.Schemas.Resolve(installation.SchemaFamily); var visibility = await AppServices.EditorVisibility.LoadAsync(); _session = await new IniEditorSessionService(AppServices.IniFiles).OpenSessionAsync(installation); Settings.Clear(); string? previousGroup = null; foreach (var binding in SettingBindingFactory.CreateVisible(provider, _session.Document).Where(x => EditorVisibilityPolicy.Resolve(x.Definition, installation.SchemaFamily, visibility) == EditorVisibility.Visible)) { var item = new EditorSettingItemViewModel(binding); if (!string.Equals(previousGroup, binding.Definition.GroupId, StringComparison.Ordinal)) { item.GroupDisplayName = provider.Groups.FirstOrDefault(x => x.Id == binding.Definition.GroupId)?.DisplayName ?? binding.Definition.GroupId; previousGroup = binding.Definition.GroupId; } Settings.Add(item); } StatusText = $"{Settings.Count} supported settings are available."; }

@@ -7,20 +7,22 @@ using OptiEditor.Core.Utilities;
 
 namespace OptiEditor.Core.Presets;
 public interface IUserPresetStore { Task<IReadOnlyList<PresetDefinition>> LoadAsync(CancellationToken token = default); Task SaveAsync(IEnumerable<PresetDefinition> presets, CancellationToken token = default); }
+public sealed class PresetStoreException(string message, Exception? innerException = null) : IOException(message, innerException);
 public sealed class UserPresetStore(string? appData = null, IDiagnosticLogger? logger = null) : IUserPresetStore
 {
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _path = Path.Combine(appData ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OptiEditor"), "presets.json");
     public async Task<IReadOnlyList<PresetDefinition>> LoadAsync(CancellationToken token = default)
     {
+        if (Directory.Exists(_path)) throw new PresetStoreException("User presets could not be loaded safely because the preset file path is a directory.");
         if (!File.Exists(_path)) return []; try { await using var stream = File.OpenRead(_path); return (await JsonSerializer.DeserializeAsync<List<PresetDefinition>>(stream, cancellationToken: token) ?? []).Where(x => x.Source == PresetSource.User).ToArray(); }
         catch (JsonException ex)
         {
             try { var invalid = Path.Combine(Path.GetDirectoryName(_path)!, $"presets.invalid-{DateTime.UtcNow:yyyyMMddHHmmss}.json"); File.Move(_path, invalid, true); logger?.Error("Invalid user presets were moved aside.", ex); }
-            catch (Exception recoveryException) when (recoveryException is IOException or UnauthorizedAccessException) { logger?.Error("Invalid user presets could not be moved aside.", recoveryException); }
+            catch (Exception recoveryException) when (recoveryException is IOException or UnauthorizedAccessException or System.Security.SecurityException) { logger?.Error("Invalid user presets could not be moved aside.", recoveryException); throw new PresetStoreException("Invalid user presets could not be moved aside safely.", recoveryException); }
             return [];
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { logger?.Error("User presets could not be loaded.", ex); return []; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { logger?.Error("User presets could not be loaded.", ex); throw new PresetStoreException("User presets could not be loaded safely.", ex); }
     }
     public async Task SaveAsync(IEnumerable<PresetDefinition> presets, CancellationToken token = default)
     {

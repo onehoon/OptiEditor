@@ -32,6 +32,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     }
     public void Dispose()
     {
+        _operationCancellation?.Cancel();
         AppServices.Installations.InstallationsChanged -= OnInstallationsChanged;
         foreach (var item in Items) item.PropertyChanged -= OnItemPropertyChanged;
     }

@@ -64,6 +64,36 @@ public sealed class IniDocumentTests
         finally { var directory = Path.GetDirectoryName(temp)!; Directory.Delete(directory, true); }
     }
 
+    [Fact]
+    public async Task Save_refuses_change_made_while_creating_backup()
+    {
+        var temp = CreateTempCopy("OptiScaler-0.10.ini");
+        try
+        {
+            var loaded = await new IniFileService().LoadAsync(temp);
+            loaded.Document.ApplyPatch(new(new("DLSSG", "DispatchFlags"), "0x14"));
+            var service = new IniFileService(new MutatingBackupService("; external change during backup\n"));
+
+            var result = await service.SaveAsync(loaded.Document, loaded.Snapshot);
+
+            Assert.False(result.Success);
+            Assert.Contains("externally", result.Error!, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("external change during backup", await File.ReadAllTextAsync(temp));
+            Assert.NotEqual("0x14", (await new IniFileService().LoadAsync(temp)).Document.GetRawValue(new("DLSSG", "DispatchFlags")));
+        }
+        finally { var directory = Path.GetDirectoryName(temp)!; Directory.Delete(directory, true); }
+    }
+
     private static string FixturePath(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", name);
     private static string CreateTempCopy(string name) { var directory = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory); var target = Path.Combine(directory, "OptiScaler.ini"); File.Copy(FixturePath(name), target); return target; }
+    private sealed class MutatingBackupService(string text) : IIniBackupService
+    {
+        public async Task<string> CreateBackupAsync(string sourcePath, CancellationToken cancellationToken)
+        {
+            var backup = sourcePath + ".optieditor.bak";
+            File.Copy(sourcePath, backup, true);
+            await File.AppendAllTextAsync(sourcePath, text, cancellationToken);
+            return backup;
+        }
+    }
 }
