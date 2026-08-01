@@ -40,13 +40,17 @@ public sealed class IniFileService(IIniBackupService? backups = null, IAtomicFil
         {
             var current = await CaptureSnapshotAsync(path, null, cancellationToken);
             if (!string.Equals(current.ContentHash, expectedSnapshot.ContentHash, StringComparison.Ordinal)) throw new IniFileChangedExternallyException();
-            var backup = await _backups.CreateBackupAsync(path, cancellationToken);
             temporary = path + ".optieditor." + Guid.NewGuid().ToString("N") + ".tmp";
             var bytes = document.RenderBytes();
             await using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) { await stream.WriteAsync(bytes, cancellationToken); await stream.FlushAsync(cancellationToken); }
             var verification = await LoadAsync(temporary, cancellationToken);
             foreach (var key in document.ModifiedKeys)
                 if (!string.Equals(verification.Document.GetRawValue(key), document.GetRawValue(key), StringComparison.Ordinal)) throw new IniSaveException("Temporary INI verification failed.");
+            // The source can change while the temporary copy is validated. Check
+            // the original snapshot again immediately before the irreversible swap.
+            var finalCurrent = await CaptureSnapshotAsync(path, null, cancellationToken);
+            if (!string.Equals(finalCurrent.ContentHash, expectedSnapshot.ContentHash, StringComparison.Ordinal)) throw new IniFileChangedExternallyException();
+            var backup = await _backups.CreateBackupAsync(path, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested(); await _replacer.ReplaceAsync(temporary, path, cancellationToken); temporary = null;
             var snapshot = await CaptureSnapshotAsync(path, null, cancellationToken);
             return new(true, backup, snapshot, document.ModifiedKeys.ToArray(), null);

@@ -8,6 +8,7 @@ public sealed partial class OptiScalerUpdatePage : Page
 {
     public OptiScalerUpdateViewModel ViewModel { get; } = new();
     public OptiScalerUpdatePage() { InitializeComponent(); }
+    protected override void OnNavigatedFrom(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e) { ViewModel.Dispose(); base.OnNavigatedFrom(e); }
     private async void SelectSource_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
     {
         var picker = new FileOpenPicker(); picker.FileTypeFilter.Add("*"); InitializeWithWindow.Initialize(picker, App.WindowHandle);

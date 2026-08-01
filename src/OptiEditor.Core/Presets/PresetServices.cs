@@ -3,17 +3,19 @@ using System.Text.Json;
 using OptiEditor.Core.Ini;
 using OptiEditor.Core.Schema;
 using OptiEditor.Core.Models;
+using OptiEditor.Core.Utilities;
 
 namespace OptiEditor.Core.Presets;
 public interface IUserPresetStore { Task<IReadOnlyList<PresetDefinition>> LoadAsync(CancellationToken token = default); Task SaveAsync(IEnumerable<PresetDefinition> presets, CancellationToken token = default); }
-public sealed class UserPresetStore(string? appData = null) : IUserPresetStore
+public sealed class UserPresetStore(string? appData = null, IDiagnosticLogger? logger = null) : IUserPresetStore
 {
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _path = Path.Combine(appData ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OptiEditor"), "presets.json");
     public async Task<IReadOnlyList<PresetDefinition>> LoadAsync(CancellationToken token = default)
     {
         if (!File.Exists(_path)) return []; try { await using var stream = File.OpenRead(_path); return (await JsonSerializer.DeserializeAsync<List<PresetDefinition>>(stream, cancellationToken: token) ?? []).Where(x => x.Source == PresetSource.User).ToArray(); }
-        catch (JsonException) { var invalid = Path.Combine(Path.GetDirectoryName(_path)!, $"presets.invalid-{DateTime.UtcNow:yyyyMMddHHmmss}.json"); File.Move(_path, invalid, true); return []; }
+        catch (JsonException ex) { var invalid = Path.Combine(Path.GetDirectoryName(_path)!, $"presets.invalid-{DateTime.UtcNow:yyyyMMddHHmmss}.json"); File.Move(_path, invalid, true); logger?.Error("Invalid user presets were moved aside.", ex); return []; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { logger?.Error("User presets could not be loaded.", ex); return []; }
     }
     public async Task SaveAsync(IEnumerable<PresetDefinition> presets, CancellationToken token = default)
     {
@@ -26,7 +28,7 @@ public sealed class PresetPreviewService(OptiSchemaResolver resolver)
     public PresetApplicationPreview Create(PresetDefinition preset, OptiSchemaFamily family, IniDocument document)
     {
         if (preset.Family != family) return new(preset, [], "This preset targets a different OptiScaler version family."); var schema = resolver.Resolve(family);
-        var items = preset.Entries.Select(entry => { var definition = schema.FindById(entry.SettingId); if (definition is null) return new PresetApplicationItem(entry, PresetApplicationStatus.UnsupportedSetting, null, false); if (!SettingValidator.Validate(definition, entry.RawValue).IsValid) return new PresetApplicationItem(entry, PresetApplicationStatus.InvalidPresetValue, null, false); var current = document.GetRawValue(definition.IniKey); if (current is null) return new PresetApplicationItem(entry, PresetApplicationStatus.MissingInTargetIni, null, false); var changed = !string.Equals(current, entry.RawValue, StringComparison.OrdinalIgnoreCase); return new PresetApplicationItem(entry, changed ? PresetApplicationStatus.WillChange : PresetApplicationStatus.NoChange, current, changed); }).ToArray(); return new(preset, items, null);
+        var items = preset.Entries.Select(entry => { var definition = schema.FindById(entry.SettingId); if (definition is null) return new PresetApplicationItem(entry, PresetApplicationStatus.UnsupportedSetting, null, false); if (!SettingValidator.Validate(definition, entry.RawValue).IsValid) return new PresetApplicationItem(entry, PresetApplicationStatus.InvalidPresetValue, null, false); var current = document.GetRawValue(definition.IniKey); if (current is null) return new PresetApplicationItem(entry, PresetApplicationStatus.MissingInTargetIni, null, false); var changed = !SettingValueComparer.AreEquivalent(definition, current, entry.RawValue); return new PresetApplicationItem(entry, changed ? PresetApplicationStatus.WillChange : PresetApplicationStatus.NoChange, current, changed); }).ToArray(); return new(preset, items, null);
     }
 }
 public sealed class PresetValidationService(OptiSchemaResolver resolver)
