@@ -1,0 +1,14 @@
+<Page x:Class="OptiEditor.App.Views.EditorPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:OptiEditor.App.ViewModels">
+  <Grid Padding="24" RowSpacing="12">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <Grid ColumnSpacing="16">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <StackPanel><TextBlock Text="{x:Bind ViewModel.Installation.GameDisplayName, Mode=OneWay}" Style="{StaticResource TitleTextBlockStyle}"/><TextBlock Text="{x:Bind ViewModel.Installation.GameExeName, Mode=OneWay}"/><TextBlock Text="{x:Bind ViewModel.Installation.ProductVersion, Mode=OneWay}"/><TextBlock Text="{x:Bind ViewModel.Installation.OptiBinaryFileName, Mode=OneWay}"/></StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top"><Button Content="Save" Click="Save_Click"/><Button Content="Revert All" Click="RevertAll_Click"/><Button Content="Reload" Click="Reload_Click"/></StackPanel>
+    </Grid>
+    <TextBlock Grid.Row="1" Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"/>
+    <ListView Grid.Row="2" ItemsSource="{x:Bind ViewModel.Settings, Mode=OneWay}" SelectionMode="None">
+      <ListView.ItemTemplate><DataTemplate x:DataType="vm:EditorSettingItemViewModel"><Border Padding="12" Margin="0,4" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6"><Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="{x:Bind DisplayName}" Style="{StaticResource BodyStrongTextBlockStyle}"/><TextBlock Text="Unknown value will be preserved unless changed." Visibility="{x:Bind IsUnknownValue, Mode=OneWay}"/></StackPanel><TextBox Grid.Column="1" Text="{x:Bind CurrentRawValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextChanged="Value_TextChanged"/><StackPanel Grid.Column="2"><Button Content="Revert" Click="Revert_Click" Tag="{x:Bind}"/><TextBlock Text="{x:Bind ValidationError}" Foreground="IndianRed" TextWrapping="Wrap" MaxWidth="180"/></StackPanel></Grid></Border></DataTemplate></ListView.ItemTemplate>
+    </ListView>
+  </Grid>
+</Page>

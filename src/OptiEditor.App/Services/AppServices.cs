@@ -1,6 +1,8 @@
 using OptiEditor.Core.Discovery;
 using OptiEditor.Core.Storage;
 using OptiEditor.Core.Utilities;
+using OptiEditor.Core.Ini;
+using OptiEditor.Core.Schema;
 
 namespace OptiEditor.App.Services;
 
@@ -10,4 +12,6 @@ public static class AppServices
     public static ScanRootStore ScanRoots { get; } = new(AppData);
     public static IDiagnosticLogger Logger { get; } = new FileDiagnosticLogger(AppData);
     public static InstallationDiscoveryScanner Scanner { get; } = new(new SystemFileVersionInfoProvider(), Logger);
+    public static IIniFileService IniFiles { get; } = new IniFileService();
+    public static OptiSchemaResolver Schemas { get; } = new();
 }
