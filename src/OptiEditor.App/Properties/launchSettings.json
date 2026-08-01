@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "OptiEditor.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "OptiEditor.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
