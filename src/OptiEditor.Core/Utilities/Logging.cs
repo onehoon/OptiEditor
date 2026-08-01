@@ -16,6 +16,10 @@ public sealed class FileDiagnosticLogger : IDiagnosticLogger
     public void Error(string message, Exception? exception = null) => Write("ERROR", message, exception);
     private void Write(string level, string message, Exception? exception)
     {
-        lock (_gate) File.AppendAllText(_path, $"{DateTimeOffset.UtcNow:O} [{level}] {message}{(exception is null ? "" : $" :: {exception.Message}")}{Environment.NewLine}");
+        try
+        {
+            lock (_gate) File.AppendAllText(_path, $"{DateTimeOffset.UtcNow:O} [{level}] {message}{(exception is null ? "" : Environment.NewLine + exception)}{Environment.NewLine}");
+        }
+        catch { /* Logging must not terminate the application. */ }
     }
 }
