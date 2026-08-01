@@ -13,6 +13,8 @@ public partial class EditorSettingItemViewModel(SettingValueBinding binding) : O
     public string DisplayName => binding.Definition.DisplayName;
     public string Description => binding.Definition.Description;
     public string GroupName => binding.Definition.GroupId;
+    public string? GroupDisplayName { get; set; }
+    public bool IsFirstInGroup => GroupDisplayName is not null;
     public IReadOnlyList<SettingOption> Options => binding.Definition.Options;
     public bool IsChoiceSetting => binding.Definition.ValueKind is SettingValueKind.Boolean or SettingValueKind.Enum;
     public bool IsTextSetting => !IsChoiceSetting;
@@ -36,7 +38,7 @@ public partial class EditorViewModel : ObservableObject
     public bool IsDirty => Settings.Any(x => x.IsModified); public bool CanSave => IsDirty && !Settings.Any(x => x.ValidationError is not null) && !IsBusy;
     public async Task LoadAsync(OptiInstallation installation)
     {
-        IsBusy = true; try { Installation = installation; var provider = AppServices.Schemas.Resolve(installation.SchemaFamily); _session = await new IniEditorSessionService(AppServices.IniFiles).OpenSessionAsync(installation); Settings.Clear(); foreach (var binding in SettingBindingFactory.CreateVisible(provider, _session.Document)) Settings.Add(new(binding)); StatusText = $"{Settings.Count} supported settings are available."; }
+        IsBusy = true; try { Installation = installation; var provider = AppServices.Schemas.Resolve(installation.SchemaFamily); _session = await new IniEditorSessionService(AppServices.IniFiles).OpenSessionAsync(installation); Settings.Clear(); string? previousGroup = null; foreach (var binding in SettingBindingFactory.CreateVisible(provider, _session.Document)) { var item = new EditorSettingItemViewModel(binding); if (!string.Equals(previousGroup, binding.Definition.GroupId, StringComparison.Ordinal)) { item.GroupDisplayName = provider.Groups.FirstOrDefault(x => x.Id == binding.Definition.GroupId)?.DisplayName ?? binding.Definition.GroupId; previousGroup = binding.Definition.GroupId; } Settings.Add(item); } StatusText = $"{Settings.Count} supported settings are available."; }
         catch (Exception ex) { AppServices.Logger.Error("Editor load failed.", ex); StatusText = "Settings could not be loaded."; }
         finally { IsBusy = false; OnPropertyChanged(nameof(CanSave)); }
     }
@@ -54,6 +56,7 @@ public partial class EditorViewModel : ObservableObject
         foreach (var item in Settings) { var changed = selectedPreview.Items.FirstOrDefault(x => x.IsSelected && x.Entry.SettingId == item.Binding.Definition.Id); if (changed is not null) { item.CurrentRawValue = changed.Entry.RawValue; item.Update(); } }
         StatusText = "Preset applied to the editor. Review the changes and select Save to update OptiScaler.ini."; OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); return true;
     }
+    public PresetApplicationPreview? CreatePresetPreview(PresetDefinition preset) => _session is null || Installation is null ? null : new PresetPreviewService(AppServices.Schemas).Create(preset, Installation.SchemaFamily, _session.Document);
     public async Task SaveAsync()
     {
         if (_session is null || !CanSave) return; IsBusy = true;
