@@ -25,5 +25,5 @@ jobs:
       - run: dotnet restore OptiEditor.sln
       - run: dotnet test tests/OptiEditor.Core.Tests/OptiEditor.Core.Tests.csproj --configuration Release
       - run: dotnet publish src/OptiEditor.App/OptiEditor.App.csproj -c Release -r win-x64 --self-contained true -o publish /p:Version=${{ steps.version.outputs.version }}
-      - run: dotnet vpk pack --packId onehoon.OptiEditor --packVersion ${{ steps.version.outputs.version }} --packDir publish --mainExe OptiEditor.exe --packTitle OptiEditor --packAuthors onehoon --runtime win10.0.17763-x64
+      - run: dotnet vpk pack --packId OptiEditor --packVersion ${{ steps.version.outputs.version }} --packDir publish --mainExe OptiEditor.exe --packTitle OptiEditor --packAuthors onehoon --runtime win10.0.17763-x64
       - run: dotnet vpk upload github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --publish --releaseName "OptiEditor ${{ steps.version.outputs.version }}" --tag "v${{ steps.version.outputs.version }}"
