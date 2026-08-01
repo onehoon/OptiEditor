@@ -64,7 +64,20 @@ public sealed class OptiScalerUpdateTests
         finally { Directory.Delete(root, true); }
     }
 
-    private static FileVersionData VersionData() => new(0, 10, 1, 0, "0.10.1", "OptiScaler", "OptiScaler", "any.bin", "OptiScaler");
+    [Fact]
+    public void Source_validation_rejects_missing_or_unreadable_file_version()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".bin"); File.WriteAllBytes(path, [1]);
+        try
+        {
+            var missing = VersionData() with { FileVersionText = null };
+            var malformed = VersionData() with { FileVersionText = "not-a-version" };
+            Assert.False(new OptiScalerSourceValidator(new FixedVersionInfo(missing)).Validate(path).IsValid);
+            Assert.False(new OptiScalerSourceValidator(new FixedVersionInfo(malformed)).Validate(path).IsValid);
+        }
+        finally { File.Delete(path); }
+    }
+    private static FileVersionData VersionData() => new(0, 10, 1, 0, "0.10.1", "OptiScaler", "OptiScaler", "any.bin", "OptiScaler", "0.10.1.0");
     private sealed class FixedVersionInfo(FileVersionData data) : IFileVersionInfoProvider { public FileVersionData Read(string path) => data; }
     private sealed class NullLogger : IDiagnosticLogger { public void Info(string message) { } public void Error(string message, Exception? exception = null) { } }
 }

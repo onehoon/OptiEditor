@@ -14,5 +14,6 @@ public sealed partial class EditorPage : Page
     private void ResetAll_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) => ViewModel.ResetAllManagedToAuto();
     private async void Reload_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { if (ViewModel.Installation is { } installation) await ViewModel.LoadAsync(installation); }
     private void Value_TextChanged(object sender, TextChangedEventArgs e) { if ((sender as FrameworkElement)?.DataContext is EditorSettingItemViewModel item) ViewModel.Update(item); }
+    private void Value_SelectionChanged(object sender, SelectionChangedEventArgs e) { if ((sender as FrameworkElement)?.DataContext is EditorSettingItemViewModel item) ViewModel.Update(item); }
     private void Revert_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { if ((sender as Button)?.Tag is EditorSettingItemViewModel item) { item.Revert(); ViewModel.Update(item); } }
 }

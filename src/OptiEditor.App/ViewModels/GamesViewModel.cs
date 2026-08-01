@@ -5,7 +5,7 @@ using OptiEditor.Core.Models;
 
 namespace OptiEditor.App.ViewModels;
 
-public partial class GamesViewModel : ObservableObject
+public partial class GamesViewModel : ObservableObject, IDisposable
 {
     public ObservableCollection<OptiInstallation> Installations { get; } = [];
     private readonly List<OptiInstallation> _allInstallations = [];
@@ -19,9 +19,11 @@ public partial class GamesViewModel : ObservableObject
     private CancellationTokenSource? _cancellation;
     public GamesViewModel()
     {
-        AppServices.Installations.InstallationsChanged += (_, _) => UpdateFromCatalog();
+        AppServices.Installations.InstallationsChanged += OnInstallationsChanged;
         UpdateFromCatalog();
     }
+    public void Dispose() => AppServices.Installations.InstallationsChanged -= OnInstallationsChanged;
+    private void OnInstallationsChanged(object? sender, EventArgs args) => UpdateFromCatalog();
     public async Task ScanAsync()
     {
         if (AppServices.Installations.IsScanning) return;

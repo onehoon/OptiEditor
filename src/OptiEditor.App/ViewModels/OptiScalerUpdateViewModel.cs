@@ -6,7 +6,7 @@ using OptiEditor.Core.OptiScalerUpdate;
 
 namespace OptiEditor.App.ViewModels;
 
-public partial class OptiScalerUpdateViewModel : ObservableObject
+public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
 {
     private bool _changingBulk;
     private CancellationTokenSource? _operationCancellation;
@@ -25,9 +25,15 @@ public partial class OptiScalerUpdateViewModel : ObservableObject
 
     public OptiScalerUpdateViewModel()
     {
-        AppServices.Installations.InstallationsChanged += (_, _) => RefreshCatalog();
+        AppServices.Installations.InstallationsChanged += OnInstallationsChanged;
         RefreshCatalog();
     }
+    public void Dispose()
+    {
+        AppServices.Installations.InstallationsChanged -= OnInstallationsChanged;
+        foreach (var item in Items) item.PropertyChanged -= OnItemPropertyChanged;
+    }
+    private void OnInstallationsChanged(object? sender, EventArgs args) => RefreshCatalog();
 
     public bool IsBulkMode => IsAllSelected || IsV09Selected || IsV10Selected;
     public bool IsIndividualSelectionEnabled => !IsBulkMode && !IsBusy && !AppServices.Installations.IsScanning;
@@ -120,9 +126,10 @@ public partial class OptiScalerUpdateViewModel : ObservableObject
     private void AddItem(OptiInstallation installation)
     {
         var item = new OptiScalerUpdateItemViewModel(installation);
-        item.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(OptiScalerUpdateItemViewModel.IsSelected)) OnPropertiesChanged(); };
+        item.PropertyChanged += OnItemPropertyChanged;
         Items.Add(item);
     }
+    private void OnItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args) { if (args.PropertyName == nameof(OptiScalerUpdateItemViewModel.IsSelected)) OnPropertiesChanged(); }
     private void OnPropertiesChanged()
     {
         OnPropertyChanged(nameof(IsBulkMode)); OnPropertyChanged(nameof(IsIndividualSelectionEnabled)); OnPropertyChanged(nameof(SelectedCount)); OnPropertyChanged(nameof(CanReplace)); OnPropertyChanged(nameof(FilteredItems));
