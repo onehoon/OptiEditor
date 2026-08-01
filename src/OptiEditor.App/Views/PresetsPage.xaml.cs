@@ -13,7 +13,7 @@ public sealed partial class PresetsPage : Page
     public PresetsPage() { InitializeComponent(); Loaded += async (_, _) => await ViewModel.LoadAsync(); }
     private async void Duplicate_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { if ((sender as Button)?.Tag is PresetDefinition preset) await ViewModel.DuplicateAsync(preset); }
     private async void Delete_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { if ((sender as Button)?.Tag is PresetDefinition preset) { if (preset.Source != PresetSource.User) { ViewModel.StatusText = "Built-in presets cannot be deleted."; return; } await ViewModel.DeleteAsync(preset); } }
-    private async void Create_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) => await EditPresetAsync(null);
+    private async void Create_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) => await EditPresetAsync(null, (sender as Button)?.Tag is "V09" ? OptiSchemaFamily.V09 : OptiSchemaFamily.V10);
     private async void Edit_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { if ((sender as Button)?.Tag is PresetDefinition preset) { if (preset.Source != PresetSource.User) { ViewModel.StatusText = "Built-in presets are read-only. Duplicate one to customize it."; return; } await EditPresetAsync(preset); } }
     private async void Apply_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
     {
@@ -24,9 +24,9 @@ public sealed partial class PresetsPage : Page
         var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = "Apply preset to game", Content = list, PrimaryButtonText = "Review changes", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary && list.SelectedItem is OptiInstallation installation) Frame.Navigate(typeof(EditorPage), new EditorNavigationRequest(installation, preset));
     }
-    private async Task EditPresetAsync(PresetDefinition? existing)
+    private async Task EditPresetAsync(PresetDefinition? existing, OptiSchemaFamily? requestedFamily = null)
     {
-        var family = existing?.Family ?? OptiSchemaFamily.V10;
+        var family = existing?.Family ?? requestedFamily ?? OptiSchemaFamily.V10;
         var schema = AppServices.Schemas.Resolve(family); var existingValues = existing?.Entries.ToDictionary(x => x.SettingId, x => x.RawValue, StringComparer.OrdinalIgnoreCase) ?? [];
         var name = new TextBox { Header = "Name", Text = existing?.Name ?? "" }; var description = new TextBox { Header = "Description", Text = existing?.Description ?? "", AcceptsReturn = true, TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap };
         var editors = new List<PresetEntryEditor>(); var settings = new StackPanel { Spacing = 6 };
