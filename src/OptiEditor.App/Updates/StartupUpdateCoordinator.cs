@@ -17,7 +17,9 @@ public sealed class StartupUpdateCoordinator : IStartupUpdateCoordinator
             if (!manager.IsInstalled) { AppServices.Logger.Info("Velopack update skipped: development or portable build."); return StartupUpdateResult.NotInstalled; }
             AppServices.Logger.Info("Startup update check started.");
             if (manager.UpdatePendingRestart is { } pending) { AppServices.Logger.Info("Applying pending OptiEditor update."); manager.ApplyUpdatesAndRestart(pending); return StartupUpdateResult.UpdateRestartStarted; }
-            var update = await manager.CheckForUpdatesAsync(); if (update is null) { AppServices.Logger.Info("No OptiEditor update found."); return StartupUpdateResult.NoUpdate; }
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(15));
+            var update = await manager.CheckForUpdatesAsync().WaitAsync(timeout.Token); if (update is null) { AppServices.Logger.Info("No OptiEditor update found."); return StartupUpdateResult.NoUpdate; }
             AppServices.Logger.Info($"OptiEditor update found: {update.TargetFullRelease.Version}."); await manager.DownloadUpdatesAsync(update, null, cancellationToken); AppServices.Logger.Info("Applying downloaded OptiEditor update."); manager.ApplyUpdatesAndRestart(update.TargetFullRelease); return StartupUpdateResult.UpdateRestartStarted;
         }
         catch (Exception ex) { AppServices.Logger.Error("Startup update failed; launching current OptiEditor version.", ex); return StartupUpdateResult.Failed; }

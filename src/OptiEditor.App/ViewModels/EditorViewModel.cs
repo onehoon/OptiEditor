@@ -11,6 +11,12 @@ namespace OptiEditor.App.ViewModels;
 public partial class EditorSettingItemViewModel(SettingValueBinding binding) : ObservableObject
 {
     public string DisplayName => binding.Definition.DisplayName;
+    public string Description => binding.Definition.Description;
+    public string GroupName => binding.Definition.GroupId;
+    public IReadOnlyList<SettingOption> Options => binding.Definition.Options;
+    public bool IsChoiceSetting => binding.Definition.ValueKind is SettingValueKind.Boolean or SettingValueKind.Enum;
+    public bool IsTextSetting => !IsChoiceSetting;
+    public string InputHint => binding.Definition.ValueKind switch { SettingValueKind.Shortcut => "Auto, -1, decimal key, or 0xNN", SettingValueKind.Double => $"Number{(binding.Definition.Minimum is null ? "" : $" (min {binding.Definition.Minimum})")}{(binding.Definition.Maximum is null ? "" : $" (max {binding.Definition.Maximum})")}", SettingValueKind.Integer => "Integer", _ => "Value" };
     [ObservableProperty] public partial string CurrentRawValue { get; set; } = binding.CurrentRawValue;
     [ObservableProperty] public partial string? ValidationError { get; set; } = binding.ValidationError;
     public bool IsUnknownValue => binding.IsUnknownValue;

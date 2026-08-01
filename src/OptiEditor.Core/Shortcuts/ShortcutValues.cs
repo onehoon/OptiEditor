@@ -7,6 +7,12 @@ public sealed record ShortcutParseResult(ShortcutValue Value, string? Warning = 
 public interface IShortcutValueConverter { ShortcutParseResult Parse(string rawValue); string Format(ShortcutValue value); }
 public sealed class ShortcutValueConverter : IShortcutValueConverter
 {
+    public static bool TryParseKnown(string rawValue, out ShortcutValue value)
+    {
+        var parsed = new ShortcutValueConverter().Parse(rawValue);
+        value = parsed.Value;
+        return value.Mode is not ShortcutValueMode.Unknown;
+    }
     public ShortcutParseResult Parse(string rawValue)
     {
         if (string.Equals(rawValue, "auto", StringComparison.OrdinalIgnoreCase)) return new(new(ShortcutValueMode.Auto, null, rawValue));

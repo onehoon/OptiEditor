@@ -30,4 +30,45 @@ public sealed class SchemaTests
     {
         var definition = new Opti10SchemaProvider().FindById("overlay.scale")!; var binding = new SettingValueBinding(definition, "auto"); binding.SetRawValue("3.0"); Assert.True(binding.HasValidationError); Assert.True(SettingValidator.Validate(definition, "1.5").IsValid); binding.SetRawValue("1.5"); Assert.False(binding.HasValidationError);
     }
+    [Theory]
+    [InlineData("auto")]
+    [InlineData("-1")]
+    [InlineData("0x2D")]
+    [InlineData("0X2d")]
+    [InlineData("45")]
+    public void Shortcut_values_accept_supported_OptiScaler_formats(string value)
+    {
+        var definition = new Opti10SchemaProvider().FindById("shortcuts.menu")!;
+        Assert.True(SettingValidator.Validate(definition, value).IsValid);
+    }
+
+    [Fact]
+    public void Unknown_existing_value_does_not_block_an_unrelated_save()
+    {
+        var definition = new Opti10SchemaProvider().FindById("framegen.output")!;
+        var binding = new SettingValueBinding(definition, "future-new-value");
+        Assert.True(binding.IsUnknownValue);
+        Assert.False(binding.HasValidationError);
+        binding.SetRawValue("still-invalid");
+        Assert.True(binding.HasValidationError);
+    }
+
+    [Fact]
+    public void Fixture_ranges_match_schema()
+    {
+        var schema = new Opti10SchemaProvider();
+        Assert.True(SettingValidator.Validate(schema.FindById("output.multiplier")!, "3.0").IsValid);
+        Assert.False(SettingValidator.Validate(schema.FindById("output.multiplier")!, "3.1").IsValid);
+        Assert.True(SettingValidator.Validate(schema.FindById("texture.mipmap-bias")!, "15.0").IsValid);
+    }
+
+    [Fact]
+    public void Advanced_fixture_entries_are_schema_backed_and_group_order_is_stable()
+    {
+        var schema = new Opti10SchemaProvider();
+        Assert.NotNull(schema.FindById("quality.ultra-performance"));
+        Assert.NotNull(schema.FindById("texture.modify-comparison"));
+        Assert.NotNull(schema.FindById("texture.mipmap-all"));
+        Assert.True(schema.Settings.ToList().FindIndex(x => x.GroupId == "quality") < schema.Settings.ToList().FindIndex(x => x.GroupId == "texture"));
+    }
 }

@@ -22,8 +22,8 @@ public sealed class OptiScalerSourceValidator(IFileVersionInfoProvider versionIn
             using (File.Open(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read)) { }
             var metadata = versionInfo.Read(fullPath);
             if (!OptiBinaryRules.IsOptiScaler(metadata)) return new(null, "The selected file was not identified as an OptiScaler binary.");
+            if (!metadata.HasReadableNumericVersion) return new(null, "The selected file does not contain readable numeric version information.");
             var version = metadata.NumericVersion;
-            if (version.Major < 0 || version.Minor < 0) return new(null, "The selected file does not contain readable version information.");
             using var hashStream = File.Open(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
             return new(new(fullPath, version, metadata.ProductVersion, file.Length, SHA256.HashData(hashStream)), null);
         }

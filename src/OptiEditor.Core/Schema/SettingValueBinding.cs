@@ -12,7 +12,9 @@ public sealed class SettingValueBinding
     public bool IsModified => !string.Equals(OriginalRawValue, CurrentRawValue, StringComparison.Ordinal);
     public bool IsUnknownValue => !string.Equals(CurrentRawValue, "auto", StringComparison.OrdinalIgnoreCase) && Definition.ValueKind == SettingValueKind.Enum && !Definition.Options.Any(x => string.Equals(x.Value, CurrentRawValue, StringComparison.OrdinalIgnoreCase));
     public string? ValidationError { get; private set; }
-    public bool HasValidationError => ValidationError is not null;
+    // Existing INI values we do not understand must remain saveable until the
+    // user changes them. This preserves forward-compatible OptiScaler values.
+    public bool HasValidationError => IsModified && ValidationError is not null;
     public void SetRawValue(string value) { CurrentRawValue = value; Validate(); }
     public void Revert() { CurrentRawValue = OriginalRawValue; Validate(); }
     public IniPatch ToPatch() => new(Definition.IniKey, CurrentRawValue);
