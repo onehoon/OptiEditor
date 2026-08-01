@@ -20,7 +20,6 @@ jobs:
           $latest = git tag -l 'v0.1.*' --sort=-version:refname | Select-Object -First 1
           $patch = if ($latest -match '^v0\.1\.(\d+)$') { [int]$Matches[1] + 1 } else { 0 }
           $version = "0.1.$patch"
-          if (git rev-parse -q --verify "refs/tags/v$version") { throw "Tag v$version already exists." }
           "version=$version" >> $env:GITHUB_OUTPUT
       - run: dotnet tool restore
       - run: dotnet restore OptiEditor.sln
