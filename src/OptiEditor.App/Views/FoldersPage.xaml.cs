@@ -20,5 +20,5 @@ public sealed partial class FoldersPage : Page
     private async void RemoveSelected_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
     { if (RootsList.SelectedItem is ScanRootItemViewModel item) await ViewModel.RemoveAsync(item); }
     private async void Save_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { await ViewModel.SaveAsync(); ViewModel.StatusText = "Folder changes saved."; }
-    private async void ScanNow_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { await ViewModel.SaveAsync(); Frame.Navigate(typeof(GamesPage)); }
+    private async void ScanNow_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { await ViewModel.SaveAsync(); await OptiEditor.App.Services.AppServices.Installations.ScanAllAsync(); Frame.Navigate(typeof(GamesPage)); }
 }

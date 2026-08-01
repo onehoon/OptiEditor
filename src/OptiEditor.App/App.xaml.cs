@@ -56,5 +56,12 @@ public partial class App : Application
         Window = new MainWindow();
         DispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
         Window.Activate();
+        _ = StartInstallationScanAsync();
+    }
+
+    private static async Task StartInstallationScanAsync()
+    {
+        try { await OptiEditor.App.Services.AppServices.Installations.ScanAllAsync(); }
+        catch (Exception ex) { OptiEditor.App.Services.AppServices.Logger.Error("Startup installation scan failed.", ex); }
     }
 }

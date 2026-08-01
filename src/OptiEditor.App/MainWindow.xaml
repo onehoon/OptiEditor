@@ -28,6 +28,7 @@
             <NavigationView.MenuItems>
                 <NavigationViewItem Content="Games" Tag="Games" Icon="Game" IsSelected="True" />
                 <NavigationViewItem Content="Presets" Tag="Presets" Icon="Favorite" />
+                <NavigationViewItem Content="OptiScaler Update" Tag="OptiScalerUpdate" Icon="Sync" />
                 <NavigationViewItem Content="Folders" Tag="Folders" Icon="Folder" />
                 <NavigationViewItem Content="Settings" Tag="Settings" Icon="Setting" />
             </NavigationView.MenuItems>
