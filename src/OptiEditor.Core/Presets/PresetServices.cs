@@ -49,3 +49,11 @@ public sealed class PresetApplicationService(OptiSchemaResolver resolver)
         foreach (var item in preview.Items.Where(x => x.IsSelected && x.Status == PresetApplicationStatus.WillChange)) { var definition = schema.FindById(item.Entry.SettingId)!; document.ApplyPatch(new(definition.IniKey, item.Entry.RawValue)); } return true;
     }
 }
+public sealed class PresetCaptureService(OptiSchemaResolver resolver)
+{
+    public PresetDefinition Capture(string name, string? description, OptiSchemaFamily family, IEnumerable<(string SettingId, string RawValue, bool IsModified)> values)
+    {
+        var schema = resolver.Resolve(family); var entries = values.Where(x => x.IsModified).Where(x => schema.FindById(x.SettingId) is { } definition && SettingValidator.Validate(definition, x.RawValue).IsValid).Select(x => new PresetEntry(x.SettingId, x.RawValue)).ToArray(); var now = DateTimeOffset.UtcNow;
+        return new(Guid.NewGuid(), name.Trim(), description, family, PresetSource.User, entries, now, now);
+    }
+}
