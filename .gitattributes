@@ -1,0 +1,2 @@
+# The supplied INI files are immutable byte-for-byte test fixtures.
+tests/OptiEditor.Core.Tests/Fixtures/*.ini -text
