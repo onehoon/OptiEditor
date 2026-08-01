@@ -1,0 +1,72 @@
+using OptiEditor.Core.Discovery;
+using OptiEditor.Core.Models;
+using OptiEditor.Core.Utilities;
+
+namespace OptiEditor.Core.Tests;
+
+public sealed class DiscoveryTests
+{
+    [Theory]
+    [InlineData("dxgi.dll")][InlineData("WINMM.DLL")][InlineData("OptiScaler.asi")]
+    public void Approved_proxy_names_are_accepted(string name) => Assert.True(OptiBinaryRules.IsApprovedProxyName(name));
+    [Fact] public void Unknown_proxy_name_is_rejected() => Assert.False(OptiBinaryRules.IsApprovedProxyName("random.dll"));
+
+    [Theory]
+    [InlineData("ProductName")][InlineData("InternalName")][InlineData("OriginalFilename")][InlineData("FileDescription")]
+    public void OptiScaler_metadata_is_accepted(string property)
+    {
+        var v = VersionData() with { ProductName = property == "ProductName" ? " OptiScaler " : null, InternalName = property == "InternalName" ? "OptiScaler" : null, OriginalFilename = property == "OriginalFilename" ? "OptiScaler.dll" : null, FileDescription = property == "FileDescription" ? "OptiScaler" : null };
+        Assert.True(OptiBinaryRules.IsOptiScaler(v));
+    }
+    [Fact] public void System_version_dll_and_missing_metadata_are_rejected() { Assert.False(OptiBinaryRules.IsOptiScaler(VersionData() with { ProductName = null, OriginalFilename = "version.dll" })); Assert.False(OptiBinaryRules.IsOptiScaler(VersionData() with { ProductName = null })); }
+
+    [Theory]
+    [InlineData(0, 9, OptiSchemaFamily.V09)][InlineData(0, 10, OptiSchemaFamily.V10)][InlineData(0, 8, OptiSchemaFamily.Unsupported)][InlineData(0, 11, OptiSchemaFamily.Unsupported)][InlineData(1, 0, OptiSchemaFamily.Unsupported)]
+    public void Version_family_is_detected_from_numeric_parts(int major, int minor, OptiSchemaFamily expected) => Assert.Equal(expected, OptiBinaryRules.DetectFamily(VersionData(major, minor)));
+
+    [Fact]
+    public void Game_exe_prefers_product_name_then_size_then_filename()
+    {
+        var result = GameExecutableDetector.Select([new("C:\\b.exe", 500, null), new("C:\\a.exe", 10, "My Game")]); Assert.Equal("a.exe", result.FileName);
+        result = GameExecutableDetector.Select([new("C:\\b.exe", 500, null), new("C:\\a.exe", 500, null)]); Assert.Equal("a.exe", result.FileName);
+        Assert.Equal("Unknown Game", GameExecutableDetector.Select([]).DisplayName);
+    }
+
+    [Fact]
+    public async Task Scanner_filters_invalid_unsupported_and_conflicting_installations()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(temp);
+        try
+        {
+            var good = Directory.CreateDirectory(Path.Combine(temp, "good")).FullName; File.WriteAllText(Path.Combine(good, "OptiScaler.ini"), ""); File.WriteAllText(Path.Combine(good, "dxgi.dll"), ""); File.WriteAllText(Path.Combine(good, "game.exe"), "");
+            var unsupported = Directory.CreateDirectory(Path.Combine(temp, "unsupported")).FullName; File.WriteAllText(Path.Combine(unsupported, "OptiScaler.ini"), ""); File.WriteAllText(Path.Combine(unsupported, "dxgi.dll"), "");
+            var conflict = Directory.CreateDirectory(Path.Combine(temp, "conflict")).FullName; File.WriteAllText(Path.Combine(conflict, "OptiScaler.ini"), ""); File.WriteAllText(Path.Combine(conflict, "dxgi.dll"), ""); File.WriteAllText(Path.Combine(conflict, "winmm.dll"), "");
+            var same = Directory.CreateDirectory(Path.Combine(temp, "same")).FullName; File.WriteAllText(Path.Combine(same, "OptiScaler.ini"), ""); File.WriteAllText(Path.Combine(same, "dxgi.dll"), ""); File.WriteAllText(Path.Combine(same, "winmm.dll"), "");
+            var noProxy = Directory.CreateDirectory(Path.Combine(temp, "no-proxy")).FullName; File.WriteAllText(Path.Combine(noProxy, "OptiScaler.ini"), "");
+            var map = new Dictionary<string, FileVersionData>(StringComparer.OrdinalIgnoreCase) { [Path.Combine(good, "dxgi.dll")] = VersionData(), [Path.Combine(good, "game.exe")] = VersionData() with { ProductName = "A Game" }, [Path.Combine(unsupported, "dxgi.dll")] = VersionData(0, 11), [Path.Combine(conflict, "dxgi.dll")] = VersionData(), [Path.Combine(conflict, "winmm.dll")] = VersionData(0, 9), [Path.Combine(same, "dxgi.dll")] = VersionData(), [Path.Combine(same, "winmm.dll")] = VersionData() };
+            var scanner = new InstallationDiscoveryScanner(new FakeVersions(map), new NullLogger()); var result = await scanner.ScanAsync([new() { Path = temp }]);
+            Assert.Equal(2, result.Installations.Count); Assert.Contains(result.Installations, x => x.GameDisplayName == "A Game"); Assert.Equal(1, result.Summary.SkippedInvalidBinary); Assert.Equal(1, result.Summary.SkippedUnsupportedVersion); Assert.Equal(1, result.Summary.ConflictingVersions);
+            File.Delete(Path.Combine(good, "dxgi.dll")); File.Delete(Path.Combine(same, "dxgi.dll")); File.Delete(Path.Combine(same, "winmm.dll")); result = await scanner.ScanAsync([new() { Path = temp }]); Assert.Empty(result.Installations);
+        }
+        finally { Directory.Delete(temp, true); }
+    }
+
+    [Fact]
+    public async Task Scanner_does_not_descend_below_a_valid_supported_installation()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(temp);
+        try
+        {
+            File.WriteAllText(Path.Combine(temp, "OptiScaler.ini"), ""); File.WriteAllText(Path.Combine(temp, "dxgi.dll"), "");
+            var nested = Directory.CreateDirectory(Path.Combine(temp, "nested")).FullName; File.WriteAllText(Path.Combine(nested, "OptiScaler.ini"), ""); File.WriteAllText(Path.Combine(nested, "dxgi.dll"), "");
+            var versions = new Dictionary<string, FileVersionData>(StringComparer.OrdinalIgnoreCase) { [Path.Combine(temp, "dxgi.dll")] = VersionData(), [Path.Combine(nested, "dxgi.dll")] = VersionData() };
+            var scanner = new InstallationDiscoveryScanner(new FakeVersions(versions), new NullLogger());
+            var result = await scanner.ScanAsync([new() { Path = temp }]);
+            var installation = Assert.Single(result.Installations); Assert.Equal(Path.GetFullPath(temp), installation.InstallDirectory);
+        }
+        finally { Directory.Delete(temp, true); }
+    }
+    private static FileVersionData VersionData(int major = 0, int minor = 10) => new(major, minor, 0, 1, "0.10.0-pre1", "OptiScaler", null, null, null);
+    private sealed class FakeVersions(IReadOnlyDictionary<string, FileVersionData> map) : IFileVersionInfoProvider { public FileVersionData Read(string path) => map[path]; }
+    private sealed class NullLogger : IDiagnosticLogger { public void Info(string message) { } public void Error(string message, Exception? exception = null) { } }
+}
