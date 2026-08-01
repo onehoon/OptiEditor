@@ -35,6 +35,11 @@ public partial class EditorViewModel : ObservableObject
     }
     public void Update(EditorSettingItemViewModel item) { item.Update(); OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); }
     public void RevertAll() { foreach (var item in Settings) item.Revert(); StatusText = "Changes were reverted."; OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); }
+    public void ResetAllManagedToAuto()
+    {
+        foreach (var item in Settings.Where(x => x.Binding.Definition.SupportsAuto)) { item.CurrentRawValue = "auto"; item.Update(); }
+        StatusText = "Managed settings were reset to Auto. Select Save to update OptiScaler.ini."; OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave));
+    }
     public async Task SaveAsync()
     {
         if (_session is null || !CanSave) return; IsBusy = true;
