@@ -5,6 +5,7 @@ using OptiEditor.Core.Ini;
 using OptiEditor.Core.Models;
 using OptiEditor.Core.Schema;
 using OptiEditor.Core.Presets;
+using OptiEditor.Core.Storage;
 
 namespace OptiEditor.App.ViewModels;
 
@@ -38,7 +39,7 @@ public partial class EditorViewModel : ObservableObject
     public bool IsDirty => Settings.Any(x => x.IsModified); public bool CanSave => IsDirty && !Settings.Any(x => x.ValidationError is not null) && !IsBusy;
     public async Task LoadAsync(OptiInstallation installation)
     {
-        IsBusy = true; try { Installation = installation; var provider = AppServices.Schemas.Resolve(installation.SchemaFamily); _session = await new IniEditorSessionService(AppServices.IniFiles).OpenSessionAsync(installation); Settings.Clear(); string? previousGroup = null; foreach (var binding in SettingBindingFactory.CreateVisible(provider, _session.Document)) { var item = new EditorSettingItemViewModel(binding); if (!string.Equals(previousGroup, binding.Definition.GroupId, StringComparison.Ordinal)) { item.GroupDisplayName = provider.Groups.FirstOrDefault(x => x.Id == binding.Definition.GroupId)?.DisplayName ?? binding.Definition.GroupId; previousGroup = binding.Definition.GroupId; } Settings.Add(item); } StatusText = $"{Settings.Count} supported settings are available."; }
+        IsBusy = true; try { Installation = installation; var provider = AppServices.Schemas.Resolve(installation.SchemaFamily); var visibility = await AppServices.EditorVisibility.LoadAsync(); _session = await new IniEditorSessionService(AppServices.IniFiles).OpenSessionAsync(installation); Settings.Clear(); string? previousGroup = null; foreach (var binding in SettingBindingFactory.CreateVisible(provider, _session.Document).Where(x => EditorVisibilityPolicy.Resolve(x.Definition, installation.SchemaFamily, visibility) == EditorVisibility.Visible)) { var item = new EditorSettingItemViewModel(binding); if (!string.Equals(previousGroup, binding.Definition.GroupId, StringComparison.Ordinal)) { item.GroupDisplayName = provider.Groups.FirstOrDefault(x => x.Id == binding.Definition.GroupId)?.DisplayName ?? binding.Definition.GroupId; previousGroup = binding.Definition.GroupId; } Settings.Add(item); } StatusText = $"{Settings.Count} supported settings are available."; }
         catch (Exception ex) { AppServices.Logger.Error("Editor load failed.", ex); StatusText = "Settings could not be loaded."; }
         finally { IsBusy = false; OnPropertyChanged(nameof(CanSave)); }
     }

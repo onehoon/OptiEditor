@@ -2,6 +2,7 @@ using System.Text;
 using OptiEditor.Core.Ini;
 using OptiEditor.Core.Models;
 using OptiEditor.Core.Schema;
+using OptiEditor.Core.Storage;
 
 namespace OptiEditor.Core.Tests;
 
@@ -70,5 +71,21 @@ public sealed class SchemaTests
         Assert.NotNull(schema.FindById("texture.modify-comparison"));
         Assert.NotNull(schema.FindById("texture.mipmap-all"));
         Assert.True(schema.Settings.ToList().FindIndex(x => x.GroupId == "quality") < schema.Settings.ToList().FindIndex(x => x.GroupId == "texture"));
+    }
+
+    [Fact]
+    public void User_visibility_override_wins_over_the_app_default()
+    {
+        var definition = new Opti10SchemaProvider().FindById("framegen.enabled")!;
+        Assert.Equal(EditorVisibility.Visible, EditorVisibilityPolicy.Resolve(definition, OptiSchemaFamily.V10, []));
+        Assert.Equal(EditorVisibility.Hidden, EditorVisibilityPolicy.Resolve(definition, OptiSchemaFamily.V10, [new(OptiSchemaFamily.V10, definition.Id, EditorVisibility.Hidden)]));
+    }
+
+    [Fact]
+    public async Task Visibility_store_round_trips_user_overrides()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(folder);
+        try { var store = new EditorVisibilityStore(folder); await store.SaveAsync([new(OptiSchemaFamily.V09, "framegen.enabled", EditorVisibility.Hidden)]); var loaded = await store.LoadAsync(); var item = Assert.Single(loaded); Assert.Equal(OptiSchemaFamily.V09, item.Family); Assert.Equal(EditorVisibility.Hidden, item.Visibility); }
+        finally { Directory.Delete(folder, true); }
     }
 }
