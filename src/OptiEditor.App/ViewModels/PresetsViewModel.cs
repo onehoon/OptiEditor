@@ -12,8 +12,17 @@ public partial class PresetsViewModel : ObservableObject
  [ObservableProperty] public partial string SearchText { get; set; } = "";
  [ObservableProperty] public partial string StatusText { get; set; } = "Loading presets...";
  public async Task LoadAsync() { try { var user = await AppServices.Presets.LoadAsync(); Presets.Clear(); foreach (var p in AppServices.BuiltInPresets.GetAll().Concat(user).OrderBy(x => x.Source).ThenBy(x => x.Name)) Presets.Add(p); StatusText = Presets.Count == 0 ? "No user presets have been created." : $"{Presets.Count} presets available."; OnPropertyChanged(nameof(FilteredPresets)); } catch (Exception ex) { AppServices.Logger.Error("Preset list could not be loaded.", ex); StatusText = "Presets could not be loaded. See logs for details."; } }
- public async Task DuplicateAsync(PresetDefinition source) { var users = (await AppServices.Presets.LoadAsync()).ToList(); var name = source.Name + " Copy"; var n = 2; while (users.Any(x => x.Family == source.Family && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) name = source.Name + " Copy " + n++; var now = DateTimeOffset.UtcNow; users.Add(source with { Id = Guid.NewGuid(), Name = name, Source = PresetSource.User, CreatedAt = now, UpdatedAt = now }); await AppServices.Presets.SaveAsync(users); await LoadAsync(); }
- public async Task DeleteAsync(PresetDefinition preset) { if (preset.Source != PresetSource.User) return; var users = (await AppServices.Presets.LoadAsync()).Where(x => x.Id != preset.Id).ToList(); await AppServices.Presets.SaveAsync(users); await LoadAsync(); }
+ public async Task DuplicateAsync(PresetDefinition source)
+ {
+  try { var users = (await AppServices.Presets.LoadAsync()).ToList(); var name = source.Name + " Copy"; var n = 2; while (users.Any(x => x.Family == source.Family && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) name = source.Name + " Copy " + n++; var now = DateTimeOffset.UtcNow; users.Add(source with { Id = Guid.NewGuid(), Name = name, Source = PresetSource.User, CreatedAt = now, UpdatedAt = now }); await AppServices.Presets.SaveAsync(users); await LoadAsync(); }
+  catch (Exception ex) { AppServices.Logger.Error("Preset could not be duplicated.", ex); StatusText = "Preset could not be duplicated safely. See logs for details."; }
+ }
+ public async Task DeleteAsync(PresetDefinition preset)
+ {
+  if (preset.Source != PresetSource.User) return;
+  try { var users = (await AppServices.Presets.LoadAsync()).Where(x => x.Id != preset.Id).ToList(); await AppServices.Presets.SaveAsync(users); await LoadAsync(); }
+  catch (Exception ex) { AppServices.Logger.Error("Preset could not be deleted.", ex); StatusText = "Preset could not be deleted safely. See logs for details."; }
+ }
  public async Task<string?> SaveAsync(PresetDefinition preset)
  {
   try { var users = (await AppServices.Presets.LoadAsync()).ToList(); var error = new PresetValidationService(AppServices.Schemas).Validate(preset, users); if (error is not null) return error;

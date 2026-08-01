@@ -54,18 +54,65 @@ public sealed class AutoNumberSettingControl : SettingControlBase
 
 public sealed class ShortcutSettingControl : SettingControlBase
 {
+    private readonly TextBox _box;
+    private readonly TextBlock _captureHint;
+    private bool _isCapturing;
+
     public ShortcutSettingControl(EditorSettingItemViewModel item, Action<EditorSettingItemViewModel> changed) : base(item, changed)
     {
-        var box = new TextBox { Text = item.CurrentRawValue, PlaceholderText = "Press a key, or enter Auto, -1, decimal, 0xNN", MinWidth = 220 };
-        box.TextChanged += (_, _) => SetValue(box.Text);
-        box.KeyDown += OnKeyDown;
-        Children.Add(box);
+        var choices = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        AddChoice(choices, "Auto", "auto");
+        AddChoice(choices, "Disabled", "-1");
+        var capture = new Button { Content = "Capture Key" };
+        capture.Click += (_, _) => BeginCapture();
+        choices.Children.Add(capture);
+        Children.Add(choices);
+
+        _box = new TextBox { Text = item.CurrentRawValue, PlaceholderText = "Raw input: Auto, -1, decimal key, or 0xNN", MinWidth = 220 };
+        _box.TextChanged += (_, _) => SetValue(_box.Text);
+        _box.KeyDown += OnKeyDown;
+        Children.Add(_box);
+        _captureHint = new TextBlock { Text = "Enter a raw value, or use Capture Key." };
+        Children.Add(_captureHint);
     }
+
+    private void AddChoice(Panel panel, string label, string value)
+    {
+        var button = new Button { Content = label };
+        button.Click += (_, _) => ApplyChoice(value);
+        panel.Children.Add(button);
+    }
+
+    private void ApplyChoice(string value)
+    {
+        _isCapturing = false;
+        _captureHint.Text = "Enter a raw value, or use Capture Key.";
+        _box.Text = value;
+        SetValue(value);
+    }
+
+    private void BeginCapture()
+    {
+        _isCapturing = true;
+        _captureHint.Text = "Press a key to capture it. Press Escape to cancel.";
+        _box.Focus(FocusState.Programmatic);
+    }
+
     private void OnKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        if (!_isCapturing) return;
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            _isCapturing = false;
+            _captureHint.Text = "Key capture canceled. Enter a raw value, or use Capture Key.";
+            e.Handled = true;
+            return;
+        }
         if (e.Key is Windows.System.VirtualKey.Control or Windows.System.VirtualKey.Menu or Windows.System.VirtualKey.Shift) return;
         var value = $"0x{((int)e.Key):X2}";
-        if (sender is TextBox box) box.Text = value;
+        _box.Text = value;
         SetValue(value); e.Handled = true;
+        _isCapturing = false;
+        _captureHint.Text = "Captured key value. You can still edit the raw value.";
     }
 }
