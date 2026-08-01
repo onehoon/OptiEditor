@@ -24,6 +24,14 @@ jobs:
       - run: dotnet tool restore
       - run: dotnet restore OptiEditor.sln
       - run: dotnet test tests/OptiEditor.Core.Tests/OptiEditor.Core.Tests.csproj --configuration Release
-      - run: dotnet publish src/OptiEditor.App/OptiEditor.App.csproj -c Release -r win-x64 --self-contained true -o publish /p:Version=${{ steps.version.outputs.version }}
-      - run: dotnet vpk pack --packId OptiEditor --packVersion ${{ steps.version.outputs.version }} --packDir publish --mainExe OptiEditor.exe --packTitle OptiEditor --packAuthors onehoon --runtime win10.0.17763-x64
+      - name: Download previous package for delta generation
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path Releases | Out-Null
+          $tag = gh api "repos/${{ github.repository }}/releases?per_page=100" --jq '[.[] | select(.draft == false and .prerelease == false) | .tag_name | select(test("^v0\\.1\\.[0-9]+$"))] | sort_by(sub("^v0\\.1\\."; "") | tonumber) | last' 2>$null
+          if ($tag) { gh release download $tag --repo "${{ github.repository }}" --pattern "OptiEditor-*-full.nupkg" --dir Releases }
+      - run: dotnet publish src/OptiEditor.App/OptiEditor.App.csproj -c Release -r win-x64 --self-contained false -o publish /p:Version=${{ steps.version.outputs.version }}
+      - run: dotnet vpk pack --packId OptiEditor --packVersion ${{ steps.version.outputs.version }} --packDir publish --mainExe OptiEditor.exe --packTitle OptiEditor --packAuthors onehoon --runtime win10.0.17763-x64 --framework net10-x64-desktop
       - run: dotnet vpk upload github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --publish --releaseName "OptiEditor ${{ steps.version.outputs.version }}" --tag "v${{ steps.version.outputs.version }}"

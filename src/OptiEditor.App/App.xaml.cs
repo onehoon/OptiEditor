@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using OptiEditor.App.Updates;
+using OptiEditor.App.Services;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -42,6 +43,7 @@ public partial class App : Application
     /// </summary>
     public App()
     {
+        UnhandledException += (_, eventArgs) => StartupDiagnostics.Error("Unhandled WinUI exception.", eventArgs.Exception);
         InitializeComponent();
     }
 
@@ -51,12 +53,20 @@ public partial class App : Application
     /// <param name="args">Details about the launch request and process.</param>
     protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
-        var updateResult = await new StartupUpdateCoordinator().RunAsync();
-        if (updateResult == StartupUpdateResult.UpdateRestartStarted) return;
-        Window = new MainWindow();
-        DispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-        Window.Activate();
-        _ = StartInstallationScanAsync();
+        try
+        {
+            StartupDiagnostics.Info("WinUI launch activated. Starting application update check.");
+            var updateResult = await new StartupUpdateCoordinator().RunAsync();
+            StartupDiagnostics.Info($"Application update decision: {updateResult}.");
+            if (updateResult == StartupUpdateResult.UpdateRestartStarted) return;
+            StartupDiagnostics.Info("Creating main window.");
+            Window = new MainWindow();
+            DispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+            Window.Activate();
+            StartupDiagnostics.Info("Main window activated. Starting installation scan.");
+            _ = StartInstallationScanAsync();
+        }
+        catch (Exception ex) { StartupDiagnostics.Error("Main window startup failed.", ex); throw; }
     }
 
     private static async Task StartInstallationScanAsync()
