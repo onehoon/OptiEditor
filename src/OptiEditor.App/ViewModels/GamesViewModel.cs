@@ -17,16 +17,19 @@ public partial class GamesViewModel : ObservableObject
     [ObservableProperty] public partial string LastScanText { get; set; } = "Last scan: never";
     [ObservableProperty] public partial string InstallationCountText { get; set; } = "0 installations";
     private CancellationTokenSource? _cancellation;
+    public GamesViewModel()
+    {
+        AppServices.Installations.InstallationsChanged += (_, _) => UpdateFromCatalog();
+        UpdateFromCatalog();
+    }
     public async Task ScanAsync()
     {
-        if (IsScanning) return;
-        IsScanning = true; StatusText = "Scanning..."; _cancellation = new();
+        if (AppServices.Installations.IsScanning) return;
+        IsScanning = true; StatusText = "Scanning installed OptiScaler instances..."; _cancellation = new();
         try
         {
-            var roots = await AppServices.ScanRoots.LoadAsync(_cancellation.Token);
-            var result = await AppServices.Scanner.ScanAsync(roots, _cancellation.Token);
-            _allInstallations.Clear(); _allInstallations.AddRange(result.Installations); RefreshFilter();
-            EmptyMessage = Installations.Count == 0 ? "No OptiScaler installations were found." : "";
+            var result = await AppServices.Installations.ScanAllAsync(_cancellation.Token);
+            UpdateFromCatalog();
             LastScanTime = DateTimeOffset.Now;
             LastScanText = $"Last scan: {LastScanTime.Value.LocalDateTime:G}";
             StatusText = $"Scan complete: {result.Summary.ValidInstallations} installation(s) found.";
@@ -47,5 +50,12 @@ public partial class GamesViewModel : ObservableObject
         Installations.Clear(); foreach (var installation in results) Installations.Add(installation);
         InstallationCountText = $"{results.Count} installation{(results.Count == 1 ? "" : "s")}";
         EmptyMessage = results.Count == 0 ? "No OptiScaler installations were found." : "";
+    }
+    private void UpdateFromCatalog()
+    {
+        IsScanning = AppServices.Installations.IsScanning;
+        _allInstallations.Clear(); _allInstallations.AddRange(AppServices.Installations.Installations); RefreshFilter();
+        EmptyMessage = Installations.Count == 0 ? "No OptiScaler installations were found." : "";
+        if (IsScanning) StatusText = "Scanning installed OptiScaler instances...";
     }
 }

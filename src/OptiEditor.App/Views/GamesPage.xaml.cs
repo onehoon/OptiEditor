@@ -6,7 +6,7 @@ namespace OptiEditor.App.Views;
 public sealed partial class GamesPage : Page
 {
     public GamesViewModel ViewModel { get; } = new();
-    public GamesPage() { InitializeComponent(); Loaded += async (_, _) => await ViewModel.ScanAsync(); }
+    public GamesPage() { InitializeComponent(); }
     private async void Rescan_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) => await ViewModel.ScanAsync();
     private void Cancel_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) => ViewModel.Cancel();
     private void OpenFolder_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { if ((sender as Button)?.Tag is string path) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", path) { UseShellExecute = true }); }

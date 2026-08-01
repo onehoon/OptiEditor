@@ -10,6 +10,9 @@ public sealed class InstallationDiscoveryScanner(IFileVersionInfoProvider versio
     public Task<DiscoveryResult> ScanAsync(IEnumerable<ScanRoot> roots, CancellationToken cancellationToken = default) =>
         Task.Run(() => Scan(roots, cancellationToken), cancellationToken);
 
+    public Task<OptiInstallation?> ScanDirectoryAsync(string installDirectory, CancellationToken cancellationToken = default) =>
+        Task.Run(() => ScanDirectory(installDirectory, cancellationToken), cancellationToken);
+
     private DiscoveryResult Scan(IEnumerable<ScanRoot> roots, CancellationToken token)
     {
         logger.Info("Scan started.");
@@ -100,7 +103,27 @@ public sealed class InstallationDiscoveryScanner(IFileVersionInfoProvider versio
         var selected = candidates[0]; var family = OptiBinaryRules.DetectFamily(selected.Version);
         if (family == OptiSchemaFamily.Unsupported) { logger.Info($"INI skipped; unsupported OptiScaler version {selected.Version.NumericVersion}: {iniPath}"); return (null, true, false); }
         var game = DetectGameExecutable(directory, ref errors);
-        return (new() { IniPath = Path.GetFullPath(iniPath), InstallDirectory = Path.GetFullPath(directory), OptiBinaryPath = selected.Path, OptiBinaryFileName = Path.GetFileName(selected.Path), FileVersion = selected.Version.NumericVersion, ProductVersion = selected.Version.ProductVersion, SchemaFamily = family, GameExePath = game.Path, GameExeName = game.FileName, GameDisplayName = game.DisplayName }, false, false);
+        return (new() { IniPath = Path.GetFullPath(iniPath), InstallDirectory = Path.GetFullPath(directory), OptiBinaryPath = selected.Path, OptiBinaryFileName = Path.GetFileName(selected.Path), FileVersion = selected.Version.NumericVersion, ProductVersion = selected.Version.ProductVersion, SchemaFamily = family, GameExePath = game.Path, GameExeName = game.FileName, GameDisplayName = game.DisplayName, ScannedAt = DateTimeOffset.UtcNow }, false, false);
+    }
+
+    private OptiInstallation? ScanDirectory(string installDirectory, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var fullDirectory = Path.GetFullPath(installDirectory);
+        try
+        {
+            var iniPath = Directory.EnumerateFiles(fullDirectory, "*", SearchOption.TopDirectoryOnly)
+                .FirstOrDefault(file => string.Equals(Path.GetFileName(file), "OptiScaler.ini", StringComparison.OrdinalIgnoreCase));
+            if (iniPath is null) return null;
+            var errors = 0;
+            var outcome = TryCreateInstallation(iniPath, ref errors);
+            return outcome.Installation;
+        }
+        catch (Exception ex) when (IsExpectedFileSystemError(ex))
+        {
+            logger.Error($"Directory rescan failed: {fullDirectory}", ex);
+            return null;
+        }
     }
 
     private GameExecutable DetectGameExecutable(string directory, ref int errors)

@@ -32,7 +32,7 @@ public sealed partial class MainWindow : Window
         if (args.SelectedItem is not NavigationViewItem item) return;
         RootFrame.Navigate(item.Tag switch
         {
-            "Games" => typeof(GamesPage), "Folders" => typeof(FoldersPage),
+            "Games" => typeof(GamesPage), "Folders" => typeof(FoldersPage), "OptiScalerUpdate" => typeof(OptiScalerUpdatePage),
             "Presets" => typeof(PresetsPage), _ => typeof(PlaceholderPage)
         }, item.Tag);
     }

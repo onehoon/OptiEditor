@@ -20,6 +20,7 @@ public sealed record OptiInstallation
     public string? GameExePath { get; init; }
     public string? GameExeName { get; init; }
     public required string GameDisplayName { get; init; }
+    public required DateTimeOffset ScannedAt { get; init; }
 }
 
 public sealed record ScanSummary
