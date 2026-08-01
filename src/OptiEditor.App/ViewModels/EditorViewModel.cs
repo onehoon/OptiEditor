@@ -4,6 +4,7 @@ using OptiEditor.App.Services;
 using OptiEditor.Core.Ini;
 using OptiEditor.Core.Models;
 using OptiEditor.Core.Schema;
+using OptiEditor.Core.Presets;
 
 namespace OptiEditor.App.ViewModels;
 
@@ -35,6 +36,18 @@ public partial class EditorViewModel : ObservableObject
     }
     public void Update(EditorSettingItemViewModel item) { item.Update(); OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); }
     public void RevertAll() { foreach (var item in Settings) item.Revert(); StatusText = "Changes were reverted."; OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); }
+    public void ResetAllManagedToAuto()
+    {
+        foreach (var item in Settings.Where(x => x.Binding.Definition.SupportsAuto)) { item.CurrentRawValue = "auto"; item.Update(); }
+        StatusText = "Managed settings were reset to Auto. Select Save to update OptiScaler.ini."; OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave));
+    }
+    public bool ApplyPreset(PresetDefinition preset, IReadOnlyCollection<string>? selectedSettingIds = null)
+    {
+        if (_session is null || Installation is null) return false; var preview = new PresetPreviewService(AppServices.Schemas).Create(preset, Installation.SchemaFamily, _session.Document); if (!preview.CanApply) { StatusText = preview.Error ?? "This preset has no applicable settings."; return false; }
+        var selected = selectedSettingIds is null ? preview.Items : preview.Items.Select(x => x with { IsSelected = selectedSettingIds.Contains(x.Entry.SettingId) }).ToArray(); var selectedPreview = preview with { Items = selected }; if (!selectedPreview.CanApply) return false;
+        foreach (var item in Settings) { var changed = selectedPreview.Items.FirstOrDefault(x => x.IsSelected && x.Entry.SettingId == item.Binding.Definition.Id); if (changed is not null) { item.CurrentRawValue = changed.Entry.RawValue; item.Update(); } }
+        StatusText = "Preset applied to the editor. Review the changes and select Save to update OptiScaler.ini."; OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); return true;
+    }
     public async Task SaveAsync()
     {
         if (_session is null || !CanSave) return; IsBusy = true;

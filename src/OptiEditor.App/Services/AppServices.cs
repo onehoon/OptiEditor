@@ -3,6 +3,7 @@ using OptiEditor.Core.Storage;
 using OptiEditor.Core.Utilities;
 using OptiEditor.Core.Ini;
 using OptiEditor.Core.Schema;
+using OptiEditor.Core.Presets;
 
 namespace OptiEditor.App.Services;
 
@@ -14,4 +15,6 @@ public static class AppServices
     public static InstallationDiscoveryScanner Scanner { get; } = new(new SystemFileVersionInfoProvider(), Logger);
     public static IIniFileService IniFiles { get; } = new IniFileService();
     public static OptiSchemaResolver Schemas { get; } = new();
+    public static IUserPresetStore Presets { get; } = new UserPresetStore(AppData);
+    public static IBuiltInPresetProvider BuiltInPresets { get; } = new BuiltInPresetProvider();
 }
