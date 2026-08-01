@@ -33,6 +33,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject
     public bool IsIndividualSelectionEnabled => !IsBulkMode && !IsBusy && !AppServices.Installations.IsScanning;
     public int SelectedCount => Items.Count(x => x.IsSelected);
     public bool CanReplace => Source is not null && !IsBusy && !AppServices.Installations.IsScanning && SelectedCount > 0;
+    public string SourceDetails => Source is null ? "No source file selected" : $"{Source.Path}\nFile version: {Source.FileVersion}\nProduct version: {Source.ProductVersion ?? "Not available"}\nSize: {Source.FileSize:N0} bytes";
     public IEnumerable<OptiScalerUpdateItemViewModel> FilteredItems => Items.Where(MatchesSearch);
 
     public void SelectSource(string path)
@@ -43,6 +44,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject
         StatusText = validation.IsValid ? "Source OptiScaler binary selected." : "Source selection failed.";
         OnPropertyChanged(nameof(CanReplace));
     }
+    partial void OnSourceChanged(SourceOptiScalerBinary? value) { OnPropertyChanged(nameof(SourceDetails)); OnPropertyChanged(nameof(CanReplace)); }
 
     public async Task<IReadOnlyList<OptiScalerReplacementResult>> ReplaceAsync(CancellationToken cancellationToken = default)
     {

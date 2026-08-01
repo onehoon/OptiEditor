@@ -3,11 +3,7 @@
     <TextBlock Text="OptiScaler Update" Style="{StaticResource TitleTextBlockStyle}"/>
     <Border Padding="20" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
       <StackPanel Spacing="8"><TextBlock Text="Source OptiScaler Binary" Style="{StaticResource SubtitleTextBlockStyle}"/>
-        <TextBlock Text="No source file selected"/>
-        <TextBlock Text="{x:Bind ViewModel.Source.Path, Mode=OneWay}" TextWrapping="Wrap"/>
-        <TextBlock Text="{x:Bind ViewModel.Source.FileVersion, Mode=OneWay}"/>
-        <TextBlock Text="{x:Bind ViewModel.Source.ProductVersion, Mode=OneWay}"/>
-        <TextBlock Text="{x:Bind ViewModel.Source.FileSize, Mode=OneWay}"/>
+        <TextBlock Text="{x:Bind ViewModel.SourceDetails, Mode=OneWay}" TextWrapping="Wrap"/>
         <TextBlock Text="{x:Bind ViewModel.SourceError, Mode=OneWay}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap"/>
         <Button Content="Select Source" Click="SelectSource_Click" IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BooleanNegationConverter}}"/>
       </StackPanel>
