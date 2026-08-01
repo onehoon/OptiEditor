@@ -30,6 +30,10 @@ project.lock.json
 AppPackages/
 BundleArtifacts/
 PublishOutput/
+publish/
+publish-test/
+Releases/
+velopack-test-releases/
 *.msix
 *.msixbundle
 *.appx

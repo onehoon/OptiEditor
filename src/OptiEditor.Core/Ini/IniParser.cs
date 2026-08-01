@@ -18,7 +18,21 @@ public static partial class IniParser
         {
             var start = position; while (position < text.Length && text[position] is not '\r' and not '\n') position++;
             var body = text[start..position]; var ending = "";
-            if (position < text.Length) { ending = text[position++] == '\r' && position < text.Length && text[position] == '\n' ? "\r\n" : text[position - 1].ToString(); endings.Add(ending); }
+            if (position < text.Length)
+            {
+                var lineBreak = text[position++];
+                if (lineBreak == '\r' && position < text.Length && text[position] == '\n')
+                {
+                    position++;
+                    ending = "\r\n";
+                }
+                else
+                {
+                    ending = lineBreak.ToString();
+                }
+
+                endings.Add(ending);
+            }
             lines.Add(ParseLine(lineNumber++, body, ending, ref section, diagnostics));
         }
         if (text.Length == 0) { }
