@@ -10,8 +10,8 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <WindowsPackageType>None</WindowsPackageType>
-    <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
-    <SelfContained>false</SelfContained>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
     <PublishSingleFile>false</PublishSingleFile>
     <PublishTrimmed>false</PublishTrimmed>
     <Version>0.1.0</Version>

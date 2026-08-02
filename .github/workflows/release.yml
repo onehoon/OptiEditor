@@ -34,8 +34,8 @@ jobs:
             dotnet vpk download github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}"
             if ($LASTEXITCODE -ne 0) { throw "Previous Velopack release download failed." }
           } else { Write-Host "No prior GitHub Release exists; the first release will contain only a full package." }
-      - run: dotnet publish src/OptiEditor.App/OptiEditor.App.csproj -c Release -r win-x64 --self-contained false -o publish /p:Version=${{ steps.version.outputs.version }}
-      - run: dotnet vpk pack --packId OptiEditor --packVersion ${{ steps.version.outputs.version }} --packDir publish --mainExe OptiEditor.exe --packTitle OptiEditor --packAuthors onehoon --runtime win10.0.17763-x64 --framework net10-x64-desktop
+      - run: dotnet publish src/OptiEditor.App/OptiEditor.App.csproj -c Release -r win-x64 --self-contained true -o publish /p:Version=${{ steps.version.outputs.version }}
+      - run: dotnet vpk pack --packId OptiEditor --packVersion ${{ steps.version.outputs.version }} --packDir publish --mainExe OptiEditor.exe --packTitle OptiEditor --packAuthors onehoon --runtime win10.0.17763-x64
       - run: dotnet vpk upload github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --publish --releaseName "OptiEditor ${{ steps.version.outputs.version }}" --tag "v${{ steps.version.outputs.version }}"
       - name: Prepend the game-closing caution to the release notes
         shell: pwsh
