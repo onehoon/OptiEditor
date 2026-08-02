@@ -1,7 +1,7 @@
 # OptiEditor
 
-> [!WARNING]
-> **OptiEditor is currently under active development. Do not use it with your games or important OptiScaler installations yet.**
+> [!CAUTION]
+> **Close all games before editing an `OptiScaler.ini` file or replacing an OptiScaler DLL with OptiEditor.** Editing settings or updating binaries while a game is running can corrupt the installation or crash the game.
 
 OptiEditor is a Windows desktop utility for discovering, configuring, presetting, and locally updating existing [OptiScaler](https://github.com/optiscaler/OptiScaler) installations.
 

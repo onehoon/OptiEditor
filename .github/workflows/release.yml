@@ -37,6 +37,21 @@ jobs:
       - run: dotnet publish src/OptiEditor.App/OptiEditor.App.csproj -c Release -r win-x64 --self-contained false -o publish /p:Version=${{ steps.version.outputs.version }}
       - run: dotnet vpk pack --packId OptiEditor --packVersion ${{ steps.version.outputs.version }} --packDir publish --mainExe OptiEditor.exe --packTitle OptiEditor --packAuthors onehoon --runtime win10.0.17763-x64 --framework net10-x64-desktop
       - run: dotnet vpk upload github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --publish --releaseName "OptiEditor ${{ steps.version.outputs.version }}" --tag "v${{ steps.version.outputs.version }}"
+      - name: Prepend the game-closing caution to the release notes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v${{ steps.version.outputs.version }}"
+          $current = gh release view $tag --repo "${{ github.repository }}" --json body --jq .body
+          # Backtick is PowerShell's escape character, so a literal backtick
+          # (for the `OptiScaler.ini` code span) cannot be written directly
+          # inside the string -- build it from a single-quoted, non-
+          # interpolating literal instead.
+          $tick = '`'
+          $caution = "> [!CAUTION]`n> **Close all games before editing an ${tick}OptiScaler.ini${tick} file or replacing an OptiScaler DLL with OptiEditor.** Editing settings or updating binaries while a game is running can corrupt the installation or crash the game."
+          $notes = if ([string]::IsNullOrWhiteSpace($current)) { $caution } else { "$caution`n`n$current" }
+          gh release edit $tag --repo "${{ github.repository }}" --notes $notes
       - name: Keep the latest two releases
         shell: pwsh
         env:
