@@ -92,7 +92,7 @@ public sealed partial class PresetsPage : Page
         var entries = preset.Entries.ToArray();
         var lines = entries.Select(x => $"[{x.SettingId}] = {x.RawValue}").ToArray();
         if (!await SaveReviewDialog.ConfirmAsync(XamlRoot, "Review preset application", $"Apply '{preset.Name}' to {selected.Length} game(s).", lines)) return;
-        _isApplying = true; ApplySelectedButton.IsEnabled = false; BackFromApplyButton.IsEnabled = false; ApplySearchBox.IsEnabled = false; ApplyAllCheckBox.IsEnabled = false; ApplyGamesRepeater.IsEnabled = false;
+        _isApplying = true; ApplySelectedButton.IsEnabled = false; BackFromApplyButton.IsEnabled = false; ApplySearchBox.IsEnabled = false; ApplyAllCheckBox.IsEnabled = false; ApplyPresetPage.IsHitTestVisible = false;
         var applied = 0; var failed = 0;
         foreach (var game in selected)
         {
@@ -105,7 +105,7 @@ public sealed partial class PresetsPage : Page
             }
             catch (Exception ex) { AppServices.Logger.Error($"Preset application failed: {game.InstallDirectory}", ex); failed++; }
         }
-        _isApplying = false; ApplySelectedButton.IsEnabled = true; BackFromApplyButton.IsEnabled = true; ApplySearchBox.IsEnabled = true; ApplyAllCheckBox.IsEnabled = true; ApplyGamesRepeater.IsEnabled = true;
+        _isApplying = false; ApplySelectedButton.IsEnabled = true; BackFromApplyButton.IsEnabled = true; ApplySearchBox.IsEnabled = true; ApplyAllCheckBox.IsEnabled = true; ApplyPresetPage.IsHitTestVisible = true;
         ViewModel.StatusText = $"Preset applied to {applied} of {selected.Length} game(s). Failed: {failed}.";
         var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = "Preset application complete", Content = $"Applied: {applied}\nFailed: {failed}\nTotal selected: {selected.Length}", CloseButtonText = "OK", DefaultButton = ContentDialogButton.Close };
         await dialog.ShowAsync();
