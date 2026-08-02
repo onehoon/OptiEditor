@@ -55,7 +55,7 @@ public static class SettingValidator
         if (definition.ValueKind == SettingValueKind.Boolean && !bool.TryParse(raw, out _)) return new(false, "Select Auto, Enabled, or Disabled.");
         if (definition.ValueKind == SettingValueKind.Integer)
         {
-            if (!long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var integer)) return new(false, "Enter a valid integer.");
+            if (!TryParseInteger(raw, out var integer)) return new(false, "Enter a valid integer, or a hexadecimal value such as 0x14100000.");
             if (definition.Minimum is not null && integer < definition.Minimum || definition.Maximum is not null && integer > definition.Maximum) return new(false, $"Enter a value from {definition.Minimum?.ToString(CultureInfo.InvariantCulture) ?? "-∞"} to {definition.Maximum?.ToString(CultureInfo.InvariantCulture) ?? "∞"}.");
         }
         if (definition.ValueKind == SettingValueKind.Shortcut && !ShortcutValueConverter.TryParseKnown(raw, out _)) return new(false, "Enter Auto, -1, a decimal virtual key, or 0xNN.");
@@ -66,5 +66,20 @@ public static class SettingValidator
         }
         if (definition.ValueKind == SettingValueKind.Enum && !definition.Options.Any(x => string.Equals(x.Value, raw, StringComparison.OrdinalIgnoreCase))) return new(false, "Select a supported option.");
         return SettingValidationResult.Valid;
+    }
+
+    // OptiScaler accepts hexadecimal flag/ID values (e.g. DLSSG.DispatchFlags = 0x14100000)
+    // for settings typed as Integer, alongside plain decimal values.
+    private static bool TryParseInteger(string raw, out long value)
+    {
+        var negative = raw.StartsWith('-');
+        var unsigned = negative ? raw[1..] : raw;
+        if (unsigned.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ulong.TryParse(unsigned[2..], NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var hex)) { value = 0; return false; }
+            value = negative ? -(long)hex : (long)hex;
+            return true;
+        }
+        return long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
     }
 }

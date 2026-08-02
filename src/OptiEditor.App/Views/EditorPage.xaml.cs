@@ -76,9 +76,10 @@ public sealed partial class EditorPage : Page
         }
         RevertSelectedPreset();
         var settingsById = ViewModel.Settings.ToDictionary(item => item.Binding.Definition.Id, StringComparer.OrdinalIgnoreCase);
+        var skipped = 0;
         foreach (var entry in preset.Entries)
         {
-            if (!settingsById.TryGetValue(entry.SettingId, out var item)) continue;
+            if (!settingsById.TryGetValue(entry.SettingId, out var item)) { skipped++; continue; }
             _presetRestoreValues[item] = item.CurrentRawValue;
             item.CurrentRawValue = entry.RawValue;
             ViewModel.Update(item);
@@ -86,6 +87,10 @@ public sealed partial class EditorPage : Page
         _selectedPreset = preset;
         UpdatePresetButtonStyles();
         RenderSettings();
+        // Entries can be skipped when their setting is hidden by the current
+        // Editor visibility preferences; the preset button still looks fully
+        // selected, so surface how many entries were not applied.
+        if (skipped > 0) ViewModel.StatusText = $"Preset applied. {skipped} of {preset.Entries.Count} setting(s) were skipped because they are hidden in Editor visibility.";
     }
 
     private void RevertSelectedPreset()

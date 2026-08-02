@@ -113,6 +113,28 @@ public sealed class SchemaTests
     }
 
     [Fact]
+    public void Integer_settings_accept_hexadecimal_values()
+    {
+        var schema = new Opti10SchemaProvider();
+        var dispatchFlags = schema.FindById("DLSSG.DispatchFlags")!;
+        Assert.Equal(SettingValueKind.Integer, dispatchFlags.ValueKind);
+        Assert.True(SettingValidator.Validate(dispatchFlags, "0x14100000").IsValid);
+        Assert.True(SettingValidator.Validate(dispatchFlags, "0XABCD").IsValid);
+        Assert.True(SettingValidator.Validate(dispatchFlags, "-0x10").IsValid);
+        Assert.True(SettingValidator.Validate(dispatchFlags, "336068608").IsValid);
+        Assert.False(SettingValidator.Validate(dispatchFlags, "0xZZ").IsValid);
+        Assert.False(SettingValidator.Validate(dispatchFlags, "not-a-number").IsValid);
+    }
+
+    [Fact]
+    public void Generated_default_raw_values_have_no_leading_or_trailing_whitespace()
+    {
+        var v09 = new Opti09SchemaProvider();
+        var v10 = new Opti10SchemaProvider();
+        Assert.All(v09.Settings.Concat(v10.Settings), setting => Assert.Equal(setting.DefaultRawValue, setting.DefaultRawValue.Trim()));
+    }
+
+    [Fact]
     public void Section_visibility_hides_every_key_in_that_section()
     {
         var schema = new Opti10SchemaProvider();

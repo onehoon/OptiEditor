@@ -66,6 +66,30 @@ public sealed class DiscoveryTests
         }
         finally { Directory.Delete(temp, true); }
     }
+    [Fact]
+    public async Task Scanner_does_not_loop_forever_on_a_directory_junction_cycle()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(temp);
+        try
+        {
+            File.WriteAllText(Path.Combine(temp, "OptiScaler.ini"), "");
+            var nested = Directory.CreateDirectory(Path.Combine(temp, "nested")).FullName;
+            var junction = Path.Combine(nested, "loop");
+            var startInfo = new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c mklink /J \"{junction}\" \"{temp}\"") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            using (var process = System.Diagnostics.Process.Start(startInfo)!) { process.WaitForExit(10000); if (process.ExitCode != 0 || !Directory.Exists(junction)) return; }
+
+            try
+            {
+                var scanner = new InstallationDiscoveryScanner(new FakeVersions(new Dictionary<string, FileVersionData>(StringComparer.OrdinalIgnoreCase)), new NullLogger());
+                var task = scanner.ScanAsync([new() { Path = temp }]);
+                var completed = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(10)));
+                Assert.Same(task, completed);
+            }
+            finally { Directory.Delete(junction, false); }
+        }
+        finally { Directory.Delete(temp, true); }
+    }
+
     private static FileVersionData VersionData(int major = 0, int minor = 10) => new(major, minor, 0, 1, "0.10.0-pre1", "OptiScaler", null, null, null);
     private sealed class FakeVersions(IReadOnlyDictionary<string, FileVersionData> map) : IFileVersionInfoProvider { public FileVersionData Read(string path) => map[path]; }
     private sealed class NullLogger : IDiagnosticLogger { public void Info(string message) { } public void Error(string message, Exception? exception = null) { } }

@@ -175,7 +175,7 @@ function Get-Entries([string] $Ref) {
         if ($line -match '^\[(.+)\]$') { $section = $matches[1]; $comments.Clear(); continue }
         if ($line -match '^\s*;\s?(?<comment>.*)$') { $comments.Add($matches['comment']) | Out-Null; continue }
         if ($section -and $line -match '^([^;#\s][^=]*)=(.*)$') {
-            $key = $matches[1].Trim(); $default = $matches[2]; $id = "$section`0$key"
+            $key = $matches[1].Trim(); $default = $matches[2].Trim(); $id = "$section`0$key"
             $sourceComment = (($comments | Where-Object { $_ -and $_ -notmatch '^-{3,}\s*$' }) -join "`n").Trim()
             $comments.Clear()
             if (-not $metadata.Known.Contains($id)) { continue }

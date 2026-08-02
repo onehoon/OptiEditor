@@ -71,7 +71,19 @@ public partial class EditorViewModel : ObservableObject
         if (_session is null) return;
         if (!CanSave) { if (Settings.Any(x => x.HasBlockingValidationError)) StatusText = "Correct invalid setting values before saving."; return; }
         IsBusy = true;
-        try { foreach (var item in Settings.Where(x => x.IsModified)) _session.Document.ApplyPatch(item.Binding.ToPatch()); var result = await AppServices.IniFiles.SaveAsync(_session.Document, _session.Snapshot); if (!result.Success) { StatusText = result.Error ?? "Settings could not be saved."; return; } await LoadAsync(Installation!); StatusText = "OptiScaler settings were saved successfully."; }
+        try
+        {
+            // Patch a clone rather than the session document so a rejected save
+            // (a failed patch or an external-change conflict) never leaves the
+            // live session mutated; it stays reusable for retry or reload.
+            var candidate = _session.Document.Clone();
+            var failure = Settings.Where(x => x.IsModified).Select(item => candidate.ApplyPatch(item.Binding.ToPatch())).FirstOrDefault(x => x.Error is not null);
+            if (failure is not null) { StatusText = $"'{failure.Key.Section}.{failure.Key.Name}' could not be saved: {failure.Error}"; return; }
+            var result = await AppServices.IniFiles.SaveAsync(candidate, _session.Snapshot);
+            if (!result.Success) { StatusText = result.Error ?? "Settings could not be saved."; return; }
+            await LoadAsync(Installation!);
+            StatusText = "OptiScaler settings were saved successfully.";
+        }
         catch (Exception ex) { AppServices.Logger.Error("Editor save failed.", ex); StatusText = "Settings could not be saved."; }
         finally { IsBusy = false; OnPropertyChanged(nameof(CanSave)); }
     }

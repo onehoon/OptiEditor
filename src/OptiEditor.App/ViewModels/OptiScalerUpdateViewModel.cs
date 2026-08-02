@@ -78,7 +78,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
             Results = await AppServices.OptiScalerReplacement.ReplaceAsync(plan, progress, _operationCancellation.Token);
             var refreshDirectories = Results.Where(x => x.Status is OptiScalerReplacementStatus.Replaced or OptiScalerReplacementStatus.Failed).Select(x => x.InstallDirectory).Distinct(StringComparer.OrdinalIgnoreCase);
             await AppServices.Installations.RescanDirectoriesAsync(refreshDirectories, CancellationToken.None);
-            StatusText = "Replacement completed.";
+            StatusText = DescribeOutcome(Results);
             return Results;
         }
         catch (OperationCanceledException) { StatusText = "Replacement canceled."; return Results; }
@@ -87,6 +87,18 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     }
 
     public void Cancel() => _operationCancellation?.Cancel();
+
+    // "Replacement completed." regardless of outcome hid full-failure and
+    // full-cancellation results behind a success-sounding status message.
+    internal static string DescribeOutcome(IReadOnlyList<OptiScalerReplacementResult> results)
+    {
+        if (results.Count == 0) return "No installations were replaced.";
+        var replaced = results.Count(x => x.Status == OptiScalerReplacementStatus.Replaced);
+        if (replaced == results.Count) return $"Replacement completed. {replaced} of {results.Count} installation(s) were replaced.";
+        if (replaced == 0 && results.All(x => x.Status == OptiScalerReplacementStatus.Canceled)) return "Replacement was canceled. No installations were replaced.";
+        if (replaced == 0) return $"Replacement failed. 0 of {results.Count} installation(s) were replaced.";
+        return $"Replacement partially completed. {replaced} of {results.Count} installation(s) were replaced.";
+    }
 
     private async Task<OptiScalerReplacementPlan> BuildPlanAsync(CancellationToken token)
     {

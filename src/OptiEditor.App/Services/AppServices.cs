@@ -11,15 +11,15 @@ namespace OptiEditor.App.Services;
 public static class AppServices
 {
     private static readonly string AppData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OptiEditor");
-    public static ScanRootStore ScanRoots { get; } = new(AppData);
     public static IDiagnosticLogger Logger { get; } = new FileDiagnosticLogger(AppData);
+    public static ScanRootStore ScanRoots { get; } = new(AppData, Logger);
     public static InstallationDiscoveryScanner Scanner { get; } = new(new SystemFileVersionInfoProvider(), Logger);
     public static IInstallationCatalog Installations { get; } = new InstallationCatalog(ScanRoots, Scanner);
     public static IIniFileService IniFiles { get; } = new IniFileService();
     public static OptiSchemaResolver Schemas { get; } = new();
-    public static IEditorVisibilityStore EditorVisibility { get; } = new EditorVisibilityStore(AppData);
-    public static IStartupTabStore StartupTab { get; } = new StartupTabStore(AppData);
-    public static ISourceCommentVisibilityStore SourceComments { get; } = new SourceCommentVisibilityStore(AppData);
+    public static IEditorVisibilityStore EditorVisibility { get; } = new EditorVisibilityStore(AppData, Logger);
+    public static IStartupTabStore StartupTab { get; } = new StartupTabStore(AppData, Logger);
+    public static ISourceCommentVisibilityStore SourceComments { get; } = new SourceCommentVisibilityStore(AppData, Logger);
     public static IUserPresetStore Presets { get; } = new UserPresetStore(AppData, Logger);
     public static IBuiltInPresetProvider BuiltInPresets { get; } = new BuiltInPresetProvider();
     public static OptiScalerSourceValidator OptiScalerSourceValidator { get; } = new(new SystemFileVersionInfoProvider());

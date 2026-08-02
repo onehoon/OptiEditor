@@ -59,7 +59,12 @@ public sealed class InstallationDiscoveryScanner(IFileVersionInfoProvider versio
                         continue;
                     }
                 }
-                foreach (var child in Directory.EnumerateDirectories(directory, "*", SearchOption.TopDirectoryOnly)) directories.Push(child);
+                // Reparse points (junctions/symlinks) can point back at an ancestor
+                // directory and loop the scan forever; do not descend into them.
+                // A root the user added directly is still scanned even if it is
+                // itself a reparse point.
+                foreach (var child in Directory.EnumerateDirectories(directory, "*", SearchOption.TopDirectoryOnly))
+                    if (!new DirectoryInfo(child).Attributes.HasFlag(FileAttributes.ReparsePoint)) directories.Push(child);
             }
             catch (Exception ex) when (IsExpectedFileSystemError(ex)) { errors++; logger.Error($"Directory skipped: {directory}", ex); }
         }
