@@ -41,13 +41,21 @@ public sealed partial class PresetsPage : Page
         if (_applyPreset is null) return;
         var search = ApplySearchBox.Text.Trim();
         var games = AppServices.Installations.Installations.Where(x => x.SchemaFamily == _applyPreset.Family && (string.IsNullOrWhiteSpace(search) || x.GameDisplayName.Contains(search, StringComparison.OrdinalIgnoreCase) || (x.GameExeName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) || x.InstallDirectory.Contains(search, StringComparison.OrdinalIgnoreCase))).ToArray();
+        var cards = new List<FrameworkElement>();
         foreach (var game in games)
         {
             var check = _applyChecks.TryGetValue(game, out var existing) ? existing : new CheckBox { Tag = game, VerticalAlignment = VerticalAlignment.Top };
             _applyChecks[game] = check;
             var text = new StackPanel { Spacing = 2 }; text.Children.Add(new TextBlock { Text = game.GameDisplayName, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"] }); text.Children.Add(new TextBlock { Text = game.GameExeName }); text.Children.Add(new TextBlock { Text = game.InstallDirectory, TextWrapping = TextWrapping.Wrap });
-            var row = new Grid { ColumnSpacing = 12, Padding = new Thickness(12) }; row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); row.Children.Add(check); Grid.SetColumn(text, 1); row.Children.Add(text);
-            ApplyGamesPanel.Children.Add(new Border { BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"], BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Child = row });
+            var card = new Grid { Padding = new Thickness(12) }; card.Children.Add(text); check.HorizontalAlignment = HorizontalAlignment.Right; check.VerticalAlignment = VerticalAlignment.Top; Grid.SetColumn(check, 1); card.Children.Add(check);
+            card.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); card.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            cards.Add(new Border { BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"], BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Child = card });
+        }
+        for (var i = 0; i < cards.Count; i += 2)
+        {
+            var row = new Grid { ColumnSpacing = 12, Margin = new Thickness(0, 0, 0, 12) }; row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); row.Children.Add(cards[i]);
+            if (i + 1 < cards.Count) { Grid.SetColumn(cards[i + 1], 1); row.Children.Add(cards[i + 1]); }
+            ApplyGamesPanel.Children.Add(row);
         }
         ApplyAllCheckBox.IsChecked = games.Length > 0 && games.All(x => _applyChecks[x].IsChecked == true);
     }
@@ -87,6 +95,8 @@ public sealed partial class PresetsPage : Page
         }
         _isApplying = false; ApplySelectedButton.IsEnabled = true; BackFromApplyButton.IsEnabled = true; ApplySearchBox.IsEnabled = true; ApplyAllCheckBox.IsEnabled = true;
         ViewModel.StatusText = $"Preset applied to {applied} of {selected.Length} game(s). Failed: {failed}.";
+        var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = "Preset application complete", Content = $"Applied: {applied}\nFailed: {failed}\nTotal selected: {selected.Length}", CloseButtonText = "OK", DefaultButton = ContentDialogButton.Close };
+        await dialog.ShowAsync();
     }
 
     private async Task OpenPresetEditorAsync(PresetDefinition? existing, OptiSchemaFamily? requestedFamily = null)
