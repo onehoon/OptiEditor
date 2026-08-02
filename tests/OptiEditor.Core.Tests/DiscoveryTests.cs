@@ -12,6 +12,44 @@ public sealed class DiscoveryTests
     [Fact] public void Unknown_proxy_name_is_rejected() => Assert.False(OptiBinaryRules.IsApprovedProxyName("random.dll"));
 
     [Theory]
+    [InlineData("EpicOnlineServicesInstaller.exe")]
+    [InlineData("DLSSTweaksConfigTool.exe")]
+    [InlineData("VC_redist.x64.exe")]
+    [InlineData("UnityCrashHandler64.exe")]
+    [InlineData("CCrashReport.exe")]
+    [InlineData("InstallerMessage.exe")]
+    [InlineData("crs-handler.exe")]
+    [InlineData("crs-uploader.exe")]
+    [InlineData("REDEngineErrorReporter.exe")]
+    [InlineData("BugSplatHD64.exe")]
+    [InlineData("BsSndRpt64.exe")]
+    [InlineData("crs-video.exe")]
+    [InlineData("launcher.exe")]
+    [InlineData("unitycrashhandler64.EXE")]
+    public void Known_non_game_executables_are_excluded(string name) => Assert.True(GameExecutableDetector.IsExcluded(name));
+
+    [Fact]
+    public void Excluded_executable_is_not_selected_as_game()
+    {
+        var result = GameExecutableDetector.Select([new("C:\\UnityCrashHandler64.exe", 5000, "Unity Crash Handler"), new("C:\\game.exe", 10, "Game")]);
+        Assert.Equal("game.exe", result.FileName);
+    }
+
+    [Fact]
+    public void Game_master_name_takes_precedence_over_product_name()
+    {
+        var result = GameExecutableDetector.Select([new("C:\\DD2.exe", 10, "Unrelated Product")]);
+        Assert.Equal("Dragon's Dogma 2", result.DisplayName);
+    }
+
+    [Fact]
+    public void Game_master_map_uses_only_executable_entries()
+    {
+        Assert.Null(GameMasterNameMap.Find("WHGameArm.dll"));
+        Assert.Equal("Kingdom Come: Deliverance II", GameMasterNameMap.Find("KingdomCome.exe"));
+    }
+
+    [Theory]
     [InlineData("ProductName")][InlineData("InternalName")][InlineData("OriginalFilename")][InlineData("FileDescription")]
     public void OptiScaler_metadata_is_accepted(string property)
     {
@@ -63,9 +101,10 @@ public sealed class DiscoveryTests
     }
 
     [Fact]
-    public void Game_exe_prefers_product_name_then_size_then_filename()
+    public void Game_exe_prefers_size_then_product_name_then_filename()
     {
-        var result = GameExecutableDetector.Select([new("C:\\b.exe", 500, null), new("C:\\a.exe", 10, "My Game")]); Assert.Equal("a.exe", result.FileName);
+        var result = GameExecutableDetector.Select([new("C:\\b.exe", 500, null), new("C:\\a.exe", 10, "My Game")]); Assert.Equal("b.exe", result.FileName);
+        result = GameExecutableDetector.Select([new("C:\\b.exe", 500, "B Game"), new("C:\\a.exe", 500, "A Game")]); Assert.Equal("a.exe", result.FileName);
         result = GameExecutableDetector.Select([new("C:\\b.exe", 500, null), new("C:\\a.exe", 500, null)]); Assert.Equal("a.exe", result.FileName);
         Assert.Equal("Unknown Game", GameExecutableDetector.Select([]).DisplayName);
     }

@@ -12,7 +12,7 @@ namespace OptiEditor.App.Views;
 public sealed partial class EditorPage : Page
 {
     private bool _showSourceComments;
-    private PresetDefinition? _selectedPreset;
+    private readonly List<PresetDefinition> _selectedPresets = [];
     private readonly Dictionary<EditorSettingItemViewModel, string> _presetRestoreValues = [];
     public EditorViewModel ViewModel { get; } = new();
     public EditorPage() => InitializeComponent();
@@ -24,7 +24,7 @@ public sealed partial class EditorPage : Page
         {
             _showSourceComments = await Services.AppServices.SourceComments.LoadAsync();
             await ViewModel.LoadAsync(installation);
-            _selectedPreset = null;
+            _selectedPresets.Clear();
             _presetRestoreValues.Clear();
             await RenderPresetButtonsAsync();
             RenderSettings();
@@ -69,40 +69,41 @@ public sealed partial class EditorPage : Page
     private void PresetButton_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is not PresetDefinition preset) return;
-        if (_selectedPreset?.Id == preset.Id)
+        if (_selectedPresets.Any(x => x.Id == preset.Id))
         {
-            RevertSelectedPreset();
+            _selectedPresets.RemoveAll(x => x.Id == preset.Id);
+            ReapplySelectedPresets();
             return;
         }
-        RevertSelectedPreset();
-        var settingsById = ViewModel.Settings.ToDictionary(item => item.Binding.Definition.Id, StringComparer.OrdinalIgnoreCase);
-        var skipped = 0;
-        foreach (var entry in preset.Entries)
-        {
-            if (!settingsById.TryGetValue(entry.SettingId, out var item)) { skipped++; continue; }
-            _presetRestoreValues[item] = item.CurrentRawValue;
-            item.CurrentRawValue = entry.RawValue;
-            ViewModel.Update(item);
-        }
-        _selectedPreset = preset;
-        UpdatePresetButtonStyles();
-        RenderSettings();
+        _selectedPresets.Add(preset);
+        var skipped = ReapplySelectedPresets();
         // Entries can be skipped when their setting is hidden by the current
         // Editor visibility preferences; the preset button still looks fully
         // selected, so surface how many entries were not applied.
         if (skipped > 0) ViewModel.StatusText = $"Preset applied. {skipped} of {preset.Entries.Count} setting(s) were skipped because they are hidden in Editor visibility.";
     }
 
-    private void RevertSelectedPreset()
+    private int ReapplySelectedPresets()
     {
         foreach (var (item, value) in _presetRestoreValues) { item.CurrentRawValue = value; ViewModel.Update(item); }
-        ClearPresetSelection();
+        var settingsById = ViewModel.Settings.ToDictionary(item => item.Binding.Definition.Id, StringComparer.OrdinalIgnoreCase);
+        var skipped = 0;
+        foreach (var preset in _selectedPresets)
+            foreach (var entry in preset.Entries)
+            {
+                if (!settingsById.TryGetValue(entry.SettingId, out var item)) { skipped++; continue; }
+                if (!_presetRestoreValues.ContainsKey(item)) _presetRestoreValues[item] = item.CurrentRawValue;
+                item.CurrentRawValue = entry.RawValue;
+                ViewModel.Update(item);
+            }
+        UpdatePresetButtonStyles();
         RenderSettings();
+        return skipped;
     }
 
     private void ClearPresetSelection()
     {
-        _selectedPreset = null;
+        _selectedPresets.Clear();
         _presetRestoreValues.Clear();
         UpdatePresetButtonStyles();
     }
@@ -110,7 +111,7 @@ public sealed partial class EditorPage : Page
     private void UpdatePresetButtonStyles()
     {
         var accentStyle = (Style)Application.Current.Resources["AccentButtonStyle"];
-        foreach (var button in PresetButtonsPanel.Children.OfType<Button>()) button.Style = button.Tag is PresetDefinition preset && preset.Id == _selectedPreset?.Id ? accentStyle : null;
+        foreach (var button in PresetButtonsPanel.Children.OfType<Button>()) button.Style = button.Tag is PresetDefinition preset && _selectedPresets.Any(x => x.Id == preset.Id) ? accentStyle : null;
     }
 
     private void RenderSettings()
@@ -135,7 +136,7 @@ public sealed partial class EditorPage : Page
                 warning.SetBinding(TextBlock.TextProperty, new Binding { Source = item, Path = new PropertyPath(nameof(EditorSettingItemViewModel.UnknownValueWarningMessage)), Mode = BindingMode.OneWay });
                 label.Children.Add(warning);
                 grid.Children.Add(label);
-                var input = SettingValueControlFactory.Create(item.Binding.Definition, item.CurrentRawValue, value => { item.CurrentRawValue = value; ViewModel.Update(item); }, item.InputHint);
+                var input = SettingValueControlFactory.Create(item.Binding.Definition, item.CurrentRawValue, value => { item.CurrentRawValue = value; ViewModel.Update(item); if (_selectedPresets.Any(x => x.Entries.Any(e => string.Equals(e.SettingId, item.Binding.Definition.Id, StringComparison.OrdinalIgnoreCase)))) ReapplySelectedPresets(); }, item.InputHint);
                 Grid.SetColumn(input, 1);
                 grid.Children.Add(input);
                 var actions = new StackPanel { Spacing = 4 };
