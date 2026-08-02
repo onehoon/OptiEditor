@@ -29,6 +29,7 @@ The configuration editor currently supports **OptiScaler 0.9.x and 0.10.x**. The
   - `OptiScaler.asi`
 - Display the detected game name, executable, OptiScaler version, proxy filename, and installation folder.
 - Search discovered installations, open their folders, copy INI paths, and rescan manually.
+- Skip descending into reparse points (junctions or symlinks) while scanning to avoid infinite loops.
 
 ### Version-aware configuration editor
 
@@ -36,7 +37,7 @@ The configuration editor currently supports **OptiScaler 0.9.x and 0.10.x**. The
 - Grouped controls for upscaling, frame generation, FSR, DLSS, overlay, image quality, shortcuts, output scaling, resolution, display, texture, and other supported settings.
 - Dedicated controls for Auto/Enabled/Disabled values, enumerated options, numeric values, and shortcut keys.
 - Shortcut key capture with editable raw values such as `auto`, `-1`, decimal virtual-key codes, and `0xNN`.
-- Edit only settings that physically exist in the selected `OptiScaler.ini`.
+- Show every setting defined in the installed version's schema, using its current `OptiScaler.ini` value when present or the setting's default when absent.
 - Preserve unsupported or future values until the user explicitly changes them.
 - Preserve comments, unknown lines, ordering, whitespace, encoding, BOM, and line endings.
 - Detect external file changes before saving and refuse to overwrite a modified INI.
@@ -53,25 +54,31 @@ The configuration editor currently supports **OptiScaler 0.9.x and 0.10.x**. The
 - Choose individual preset entries to apply.
 - Apply preset values to the editor first; the INI is not written until **Save** is selected.
 - Skip settings that are not present in the target INI.
+- Preserve preset entries for settings hidden by the current Editor visibility configuration instead of dropping them when the preset is edited and re-saved.
+- Report how many preset entries were skipped when applying a preset whose settings are hidden for the target installation.
 
 ### OptiScaler Update
 
 - Select a local OptiScaler binary as the replacement source.
-- Accept any source filename when its PE metadata identifies it as OptiScaler and contains readable version information.
+- Accept a source file when its PE metadata identifies it as OptiScaler, contains a readable numeric version, and that version maps to a supported family (0.9.x or 0.10.x). Any other source, and any filename, is rejected.
 - Display the source path, file version, product version, and file size.
-- Select targets individually or by installed family: **OptiScaler 0.9**, **OptiScaler 0.10**, or **All**.
+- Select targets individually or by installed family: **OptiScaler 0.9**, **OptiScaler 0.10**, or **All**. Only the installations you actually selected are checked and updated.
 - Search installations without clearing existing selections.
 - Rescan selected installation directories immediately before replacement.
 - Stage and verify the source with SHA-256 before modifying targets.
+- Detect installation folders that contain more than one OptiScaler-identified proxy DLL and skip them instead of guessing which one to replace. The detected filenames are listed, and a single affected installation can be opened directly in Explorer for manual cleanup.
+- Warn when a target's installed OptiScaler version family differs from the source's (0.9 ↔ 0.10) and require explicit confirmation before replacing it — once for a single target, or once for the whole batch when several differ. Declining cancels the entire run, not just the mismatched targets.
+- Re-check each target's proxy DLL count and installed version family again immediately before writing to it, in case either changed after the checks above ran.
 - Preserve each target's existing proxy filename. For example, a selected source named `source.bin` can replace an installed `dxgi.dll` while the final filename remains `dxgi.dll`.
 - Process each installation independently so one failure does not stop the remaining targets.
 - Skip locked files and report access, validation, and replacement failures per installation.
+- Automatically restore the previous binary if a replacement cannot be verified after it is written.
 - Rescan affected installations after replacement and refresh the shared installation catalog.
 
 > [!WARNING]
-> **OptiScaler Update permanently overwrites the selected installed proxy binaries and does not create backups.** Close the game before replacement and keep your own copy of any binary you may want to restore.
+> **OptiScaler Update does not keep a persistent backup of the binary it replaces.** Close the game before replacement. A replacement that fails verification is rolled back automatically, but once a replacement is reported successful, the previous file is gone for good.
 
-OptiScaler Update does not compare source and installed versions. It permits upgrades, downgrades, equal-version replacement, and replacement between the 0.9 and 0.10 families. It replaces only the detected primary OptiScaler proxy binary and does not modify `OptiScaler.ini` or auxiliary libraries.
+OptiScaler Update permits upgrades, downgrades, and equal-version replacement within the same version family without a warning. Replacing across the 0.9 and 0.10 families is also permitted, but only after explicit confirmation, since OptiEditor does not migrate `OptiScaler.ini` between families — review your settings after a cross-family replacement. It replaces only the detected primary OptiScaler proxy binary and does not modify `OptiScaler.ini` or auxiliary libraries. Installations with multiple OptiScaler proxy DLLs are never auto-resolved; they must be cleaned up manually and rescanned before they can be updated.
 
 ### OptiEditor updates
 
@@ -115,7 +122,7 @@ An installation is listed only when:
 - The proxy file's PE metadata identifies it as OptiScaler.
 - Its numeric `FileVersion` maps to a supported editor family: 0.9.x or 0.10.x.
 
-OptiEditor does not infer the version from the INI contents, directory name, or proxy filename. If multiple verified proxy binaries report conflicting versions, the installation is excluded until the conflict is resolved.
+OptiEditor does not infer the version from the INI contents, directory name, or proxy filename. If multiple verified proxy binaries report conflicting versions, the installation is excluded from discovery until the conflict is resolved. OptiScaler Update applies its own, more specific check for this case: see [OptiScaler Update](#optiscaler-update).
 
 ## Local data
 
