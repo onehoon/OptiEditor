@@ -27,6 +27,7 @@ The configuration editor currently supports **OptiScaler 0.9.x and 0.10.x**. The
   - `wininet.dll`
   - `winhttp.dll`
   - `OptiScaler.asi`
+  - `OptiScaler.dll`
 - Display the detected game name, executable, OptiScaler version, proxy filename, and installation folder.
 - Search discovered installations, open their folders, copy INI paths, and rescan manually.
 - Skip descending into reparse points (junctions or symlinks) while scanning to avoid infinite loops.
