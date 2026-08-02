@@ -17,18 +17,23 @@
             </Grid.RowDefinitions>
             <StackPanel Spacing="8">
                 <Button Content="Back" Click="Back_Click" HorizontalAlignment="Left" />
-                <TextBlock Text="Editor visibility" Style="{StaticResource TitleTextBlockStyle}" />
-                <TextBlock Text="Choose which OptiScaler settings appear when editing a game." Opacity="0.7" TextWrapping="Wrap" />
+                <TextBlock Text="Section visibility" Style="{StaticResource TitleTextBlockStyle}" />
+                <TextBlock Text="Choose which OptiScaler INI sections appear when editing a game." Opacity="0.7" TextWrapping="Wrap" />
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Content="OptiScaler 0.9" Tag="V09" Click="Family_Click" />
-                    <Button Content="OptiScaler 0.10" Tag="V10" Click="Family_Click" />
+                    <Button x:Name="V09Button" Content="OptiScaler 0.9" Tag="V09" Click="Family_Click" />
+                    <Button x:Name="V10Button" Content="OptiScaler 0.10" Tag="V10" Click="Family_Click" />
                     <Button Content="Save" Click="Save_Click" />
                     <Button Content="Reset defaults" Click="Reset_Click" />
                 </StackPanel>
             </StackPanel>
             <TextBlock Grid.Row="1" Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" TextWrapping="Wrap" />
             <ScrollViewer Grid.Row="2">
-                <StackPanel x:Name="SettingsPanel" Spacing="4" />
+                <Grid x:Name="SettingsPanel" ColumnSpacing="12" RowSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                </Grid>
             </ScrollViewer>
         </Grid>
     </Grid>

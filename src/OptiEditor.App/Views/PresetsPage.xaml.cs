@@ -4,6 +4,7 @@ using OptiEditor.App.ViewModels;
 using OptiEditor.Core.Models;
 using OptiEditor.Core.Presets;
 using OptiEditor.Core.Schema;
+using OptiEditor.Core.Storage;
 
 namespace OptiEditor.App.Views;
 
@@ -27,10 +28,10 @@ public sealed partial class PresetsPage : Page
     private async Task EditPresetAsync(PresetDefinition? existing, OptiSchemaFamily? requestedFamily = null)
     {
         var family = existing?.Family ?? requestedFamily ?? OptiSchemaFamily.V10;
-        var schema = AppServices.Schemas.Resolve(family); var existingValues = existing?.Entries.ToDictionary(x => x.SettingId, x => x.RawValue, StringComparer.OrdinalIgnoreCase) ?? [];
+        var schema = AppServices.Schemas.Resolve(family); var visibility = await AppServices.EditorVisibility.LoadAsync(); var existingValues = existing?.Entries.ToDictionary(x => x.SettingId, x => x.RawValue, StringComparer.OrdinalIgnoreCase) ?? [];
         var name = new TextBox { Header = "Name", Text = existing?.Name ?? "" }; var description = new TextBox { Header = "Description", Text = existing?.Description ?? "", AcceptsReturn = true, TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap };
         var editors = new List<PresetEntryEditor>(); var settings = new StackPanel { Spacing = 6 };
-        foreach (var definition in schema.Settings)
+        foreach (var definition in schema.Settings.Where(x => EditorVisibilityPolicy.Resolve(x, family, visibility) == EditorVisibility.Visible))
         {
             var included = existingValues.TryGetValue(definition.Id, out var value); var check = new CheckBox { Content = definition.DisplayName, IsChecked = included };
             var raw = new TextBox { Text = included ? value! : "auto", PlaceholderText = definition.Description, MinWidth = 160 }; var row = new StackPanel { Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal, Spacing = 12 }; row.Children.Add(check); row.Children.Add(raw); settings.Children.Add(row); editors.Add(new(definition, check, raw));

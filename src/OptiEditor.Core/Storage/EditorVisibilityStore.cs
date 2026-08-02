@@ -1,11 +1,15 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using OptiEditor.Core.Models;
 using OptiEditor.Core.Schema;
 
 namespace OptiEditor.Core.Storage;
 
-public sealed record EditorVisibilityPreference(OptiSchemaFamily Family, string SettingId, EditorVisibility Visibility);
+public sealed record EditorVisibilityPreference(
+    OptiSchemaFamily Family,
+    [property: JsonPropertyName("SettingId")] string Section,
+    EditorVisibility Visibility);
 
 public interface IEditorVisibilityStore
 {
@@ -32,7 +36,7 @@ public sealed class EditorVisibilityStore(string? appData = null) : IEditorVisib
         var temporary = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            var distinct = preferences.GroupBy(x => (x.Family, x.SettingId), StringTupleComparer.Instance).Select(x => x.Last()).ToArray();
+            var distinct = preferences.GroupBy(x => (x.Family, x.Section), StringTupleComparer.Instance).Select(x => x.Last()).ToArray();
             await using (var stream = File.Create(temporary)) await JsonSerializer.SerializeAsync(stream, distinct, cancellationToken: cancellationToken);
             File.Move(temporary, _path, true);
         }
@@ -49,5 +53,5 @@ public sealed class EditorVisibilityStore(string? appData = null) : IEditorVisib
 
 public static class EditorVisibilityPolicy
 {
-    public static EditorVisibility Resolve(SettingDefinition definition, OptiSchemaFamily family, IEnumerable<EditorVisibilityPreference> preferences) => preferences.LastOrDefault(x => x.Family == family && string.Equals(x.SettingId, definition.Id, StringComparison.OrdinalIgnoreCase))?.Visibility ?? definition.DefaultEditorVisibility;
+    public static EditorVisibility Resolve(SettingDefinition definition, OptiSchemaFamily family, IEnumerable<EditorVisibilityPreference> preferences) => preferences.LastOrDefault(x => x.Family == family && string.Equals(x.Section, definition.IniKey.Section, StringComparison.OrdinalIgnoreCase))?.Visibility ?? definition.DefaultEditorVisibility;
 }

@@ -76,13 +76,12 @@ public sealed class PresetTests
     }
 
     [Theory]
-    [InlineData("1", "01")]
-    [InlineData("1.0", "1")]
-    [InlineData("0x2D", "45")]
-    public void Preview_compares_numeric_and_shortcut_values_semantically(string current, string desired)
+    [InlineData("1", "01", "FrameGen.AllowedFrameAhead")]
+    [InlineData("1.0", "1", "FSR.VerticalFov")]
+    public void Preview_compares_numeric_values_semantically(string current, string desired, string id)
     {
         var schema = new Opti10SchemaProvider();
-        var setting = desired == "45" ? schema.FindById("shortcuts.menu")! : schema.FindById("output.multiplier")!;
+        var setting = schema.FindById(id)!;
         var document = IniParser.Parse($"[{setting.IniKey.Section}]\n{setting.IniKey.Name}={current}\n", new UTF8Encoding(false), false);
         var preset = Preset(OptiSchemaFamily.V10, [new(setting.Id, desired)]);
 

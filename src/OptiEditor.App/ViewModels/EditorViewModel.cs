@@ -19,7 +19,8 @@ public partial class EditorSettingItemViewModel(SettingValueBinding binding) : O
     public IReadOnlyList<SettingOption> Options => binding.Definition.Options;
     public bool IsChoiceSetting => binding.Definition.ValueKind is SettingValueKind.Boolean or SettingValueKind.Enum;
     public bool IsTextSetting => !IsChoiceSetting;
-    public string InputHint => binding.Definition.ValueKind switch { SettingValueKind.Shortcut => "Auto, -1, decimal key, or 0xNN", SettingValueKind.Double => $"Number{(binding.Definition.Minimum is null ? "" : $" (min {binding.Definition.Minimum})")}{(binding.Definition.Maximum is null ? "" : $" (max {binding.Definition.Maximum})")}", SettingValueKind.Integer => "Integer", _ => "Value" };
+    public string InputHint => binding.Definition.ValueKind switch { SettingValueKind.Shortcut => "Auto, -1, decimal key, or 0xNN", SettingValueKind.Double => NumericHint("Number"), SettingValueKind.Integer => NumericHint("Integer"), _ => "Value" };
+    private string NumericHint(string label) => $"{label}{(binding.Definition.Minimum is null ? "" : $" (min {binding.Definition.Minimum})")}{(binding.Definition.Maximum is null ? "" : $" (max {binding.Definition.Maximum})")}";
     [ObservableProperty] public partial string CurrentRawValue { get; set; } = binding.CurrentRawValue;
     [ObservableProperty] public partial string? ValidationError { get; set; } = binding.ValidationError;
     public bool IsUnknownValue => binding.IsUnknownValue;
@@ -58,7 +59,8 @@ public partial class EditorViewModel : ObservableObject
     {
         if (_session is null || Installation is null) return false; var preview = new PresetPreviewService(AppServices.Schemas).Create(preset, Installation.SchemaFamily, _session.Document); if (!preview.CanApply) { StatusText = preview.Error ?? "This preset has no applicable settings."; return false; }
         var selected = selectedSettingIds is null ? preview.Items : preview.Items.Select(x => x with { IsSelected = selectedSettingIds.Contains(x.Entry.SettingId) }).ToArray(); var selectedPreview = preview with { Items = selected }; if (!selectedPreview.CanApply) return false;
-        foreach (var item in Settings) { var changed = selectedPreview.Items.FirstOrDefault(x => x.IsSelected && x.Entry.SettingId == item.Binding.Definition.Id); if (changed is not null) { item.CurrentRawValue = changed.Entry.RawValue; item.Update(); } }
+        var schema = AppServices.Schemas.Resolve(Installation.SchemaFamily);
+        foreach (var item in Settings) { var changed = selectedPreview.Items.FirstOrDefault(x => x.IsSelected && string.Equals(schema.FindById(x.Entry.SettingId)?.Id, item.Binding.Definition.Id, StringComparison.OrdinalIgnoreCase)); if (changed is not null) { item.CurrentRawValue = changed.Entry.RawValue; item.Update(); } }
         StatusText = "Preset applied to the editor. Review the changes and select Save to update OptiScaler.ini."; OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); return true;
     }
     public PresetApplicationPreview? CreatePresetPreview(PresetDefinition preset) => _session is null || Installation is null ? null : new PresetPreviewService(AppServices.Schemas).Create(preset, Installation.SchemaFamily, _session.Document);

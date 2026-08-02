@@ -56,8 +56,8 @@ public sealed partial class SettingsPage : Page
     {
         var icon = new SymbolIcon(Symbol.Edit) { VerticalAlignment = VerticalAlignment.Center };
         var text = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(new TextBlock { Text = "Editor visibility", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"] });
-        text.Children.Add(new TextBlock { Text = "Choose which OptiScaler settings are shown while editing", Opacity = .7, TextWrapping = TextWrapping.Wrap });
+        text.Children.Add(new TextBlock { Text = "Section visibility", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"] });
+        text.Children.Add(new TextBlock { Text = "Choose which OptiScaler INI sections are shown while editing", Opacity = .7, TextWrapping = TextWrapping.Wrap });
 
         var chevron = new SymbolIcon(Symbol.Forward) { VerticalAlignment = VerticalAlignment.Center, Opacity = .7 };
         var content = CreateCardContent(icon, text, chevron);
@@ -85,7 +85,8 @@ public sealed partial class SettingsPage : Page
         {
             SettingsHome.Visibility = Visibility.Collapsed;
             EditorVisibilityDetail.Visibility = Visibility.Visible;
-            await ViewModel.LoadAsync(OptiSchemaFamily.V10);
+            await ViewModel.LoadAsync(OptiSchemaFamily.V09);
+            UpdateFamilyButtons();
             Render();
         }
         else
@@ -108,7 +109,15 @@ public sealed partial class SettingsPage : Page
     private async void Family_Click(object sender, RoutedEventArgs e)
     {
         await ViewModel.LoadAsync((sender as Button)?.Tag is "V09" ? OptiSchemaFamily.V09 : OptiSchemaFamily.V10);
+        UpdateFamilyButtons();
         Render();
+    }
+
+    private void UpdateFamilyButtons()
+    {
+        var accentStyle = (Style)Application.Current.Resources["AccentButtonStyle"];
+        V09Button.Style = ViewModel.SelectedFamily == OptiSchemaFamily.V09 ? accentStyle : null;
+        V10Button.Style = ViewModel.SelectedFamily == OptiSchemaFamily.V10 ? accentStyle : null;
     }
 
     private async void Save_Click(object sender, RoutedEventArgs e) => await ViewModel.SaveAsync();
@@ -116,20 +125,18 @@ public sealed partial class SettingsPage : Page
 
     private void Render()
     {
-        SettingsPanel.Children.Clear(); string? group = null;
-        foreach (var item in ViewModel.Settings)
+        SettingsPanel.Children.Clear();
+        SettingsPanel.RowDefinitions.Clear();
+        for (var index = 0; index < ViewModel.Sections.Count; index++)
         {
-            if (!string.Equals(group, item.GroupName, StringComparison.Ordinal))
-            {
-                group = item.GroupName;
-                SettingsPanel.Children.Add(new TextBlock { Text = group, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], Margin = new Thickness(0, 12, 0, 2) });
-            }
-            var toggle = new ToggleSwitch { Header = item.DisplayName, IsOn = item.IsVisible, Tag = item, OnContent = "Shown", OffContent = "Hidden" };
-            toggle.Toggled += (_, _) => { if (toggle.Tag is EditorVisibilitySettingItemViewModel current) { current.IsVisible = toggle.IsOn; current.IsOverridden = current.IsVisible != current.DefaultVisible; } };
-            var row = new StackPanel { Spacing = 2 }; row.Children.Add(toggle);
-            if (!string.IsNullOrWhiteSpace(item.Description)) row.Children.Add(new TextBlock { Text = item.Description, TextWrapping = TextWrapping.Wrap });
-            row.Children.Add(new TextBlock { Text = item.DefaultVisible ? "App default: shown" : "App default: hidden", Opacity = .65 });
-            SettingsPanel.Children.Add(new Border { Child = row, Padding = new Thickness(10), BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"], BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6) });
+            if (index % 2 == 0) SettingsPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var item = ViewModel.Sections[index];
+            var title = new TextBlock { Text = item.Section, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], VerticalAlignment = VerticalAlignment.Center };
+            var toggle = new ToggleSwitch { IsOn = item.IsVisible, Tag = item, OnContent = "Shown", OffContent = "Hidden", HorizontalAlignment = HorizontalAlignment.Right };
+            toggle.Toggled += (_, _) => { if (toggle.Tag is EditorVisibilitySectionItemViewModel current) { current.IsVisible = toggle.IsOn; current.IsOverridden = current.IsVisible != current.DefaultVisible; } };
+            var content = CreateCardContent(new SymbolIcon(Symbol.Bullets) { VerticalAlignment = VerticalAlignment.Center }, title, toggle);
+            var card = new Border { Child = content, Padding = new Thickness(14, 12, 14, 12), BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"], BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) };
+            Grid.SetRow(card, index / 2); Grid.SetColumn(card, index % 2); SettingsPanel.Children.Add(card);
         }
     }
 }

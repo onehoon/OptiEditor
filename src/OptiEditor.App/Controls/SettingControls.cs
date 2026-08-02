@@ -35,6 +35,7 @@ public sealed class EnumSettingControl : SettingControlBase
     public EnumSettingControl(EditorSettingItemViewModel item, Action<EditorSettingItemViewModel> changed) : base(item, changed)
     {
         var combo = new ComboBox { MinWidth = 220 };
+        if (item.Binding.Definition.SupportsAuto) combo.Items.Add(new ComboBoxItem { Tag = "auto", Content = "Auto" });
         foreach (var option in item.Options) combo.Items.Add(new ComboBoxItem { Tag = option.Value, Content = option.Label });
         if (!item.Options.Any(x => string.Equals(x.Value, item.CurrentRawValue, StringComparison.OrdinalIgnoreCase))) combo.Items.Add(new ComboBoxItem { Tag = item.CurrentRawValue, Content = $"Unknown (preserved): {item.CurrentRawValue}" });
         combo.SelectedItem = combo.Items.OfType<ComboBoxItem>().FirstOrDefault(x => string.Equals((string)x.Tag, item.CurrentRawValue, StringComparison.OrdinalIgnoreCase));

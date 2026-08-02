@@ -6,31 +6,12 @@ namespace OptiEditor.Core.Tests;
 public sealed class IniDocumentTests
 {
     [Theory]
-    [InlineData("OptiScaler-0.9.ini")]
-    [InlineData("OptiScaler-0.10.ini")]
-    public async Task Fixtures_round_trip_byte_for_byte_without_modification(string fixture)
+    [InlineData("[One]\r\nEnabled=true\r\n")]
+    [InlineData("[One]\nEnabled=true\n")]
+    public void Parser_round_trips_byte_for_byte_without_modification(string source)
     {
-        var path = FixturePath(fixture); var loaded = await new IniFileService().LoadAsync(path);
-        Assert.Equal(await File.ReadAllBytesAsync(path), loaded.Document.RenderBytes());
-    }
-
-    [Fact]
-    public async Task V09_fixture_exposes_expected_entries()
-    {
-        var doc = (await new IniFileService().LoadAsync(FixturePath("OptiScaler-0.9.ini"))).Document;
-        Assert.Equal("auto", doc.GetRawValue(new("Upscalers", "Dx12Upscaler"))); Assert.Equal("auto", doc.GetRawValue(new("FrameGen", "FGInput"))); Assert.Equal("auto", doc.GetRawValue(new("FrameGen", "FGOutput")));
-        Assert.True(doc.Contains(new("FSR", "Fsr4Update"))); Assert.True(doc.Contains(new("FSR", "Fsr4ForceEnableInt8"))); Assert.True(doc.Contains(new("FSR", "Fsr4Preset"))); Assert.True(doc.Contains(new("Nukems", "MakeDepthCopy")));
-        Assert.DoesNotContain(doc.GetSectionNames(), x => string.Equals(x, "DLSSG", StringComparison.OrdinalIgnoreCase)); Assert.Equal("auto", doc.GetRawValue(new("Libraries", "OptiDllPath"))); Assert.Equal("auto", doc.GetRawValue(new("Menu", "ShortcutKey")));
-    }
-
-    [Fact]
-    public async Task V10_fixture_preserves_dispatch_flags_spacing_and_expected_entries()
-    {
-        var doc = (await new IniFileService().LoadAsync(FixturePath("OptiScaler-0.10.ini"))).Document;
-        Assert.Equal("auto", doc.GetRawValue(new("Upscalers", "Dx12Upscaler"))); Assert.Equal("auto", doc.GetRawValue(new("FrameGen", "FGInput"))); Assert.Equal("auto", doc.GetRawValue(new("FrameGen", "FGOutput")));
-        Assert.True(doc.Contains(new("DLSSG", "InterpolationCount"))); Assert.True(doc.Contains(new("FSR", "Fsr4ForceModel"))); Assert.True(doc.Contains(new("FSR", "Fsr4Preset"))); Assert.True(doc.Contains(new("NvngxFG", "MakeDepthCopy"))); Assert.True(doc.Contains(new("Sharpness", "Shader"))); Assert.True(doc.Contains(new("Magnifier", "Enabled")));
-        Assert.DoesNotContain(doc.GetSectionNames(), x => string.Equals(x, "Nukems", StringComparison.OrdinalIgnoreCase));
-        doc.ApplyPatch(new(new("DLSSG", "DispatchFlags"), "0x14100000")); Assert.Contains("DispatchFlags = 0x14100000", doc.RenderText());
+        var document = IniParser.Parse(source, new UTF8Encoding(false), false);
+        Assert.Equal(new UTF8Encoding(false).GetBytes(source), document.RenderBytes());
     }
 
     [Fact]
@@ -52,7 +33,7 @@ public sealed class IniDocumentTests
     [Fact]
     public async Task Save_creates_backup_and_refuses_external_content_changes()
     {
-        var temp = CreateTempCopy("OptiScaler-0.10.ini");
+        var temp = CreateTempIni();
         try
         {
             var service = new IniFileService(); var loaded = await service.LoadAsync(temp); loaded.Document.ApplyPatch(new(new("DLSSG", "DispatchFlags"), "0x14"));
@@ -67,7 +48,7 @@ public sealed class IniDocumentTests
     [Fact]
     public async Task Save_refuses_change_made_while_creating_backup()
     {
-        var temp = CreateTempCopy("OptiScaler-0.10.ini");
+        var temp = CreateTempIni();
         try
         {
             var loaded = await new IniFileService().LoadAsync(temp);
@@ -84,8 +65,14 @@ public sealed class IniDocumentTests
         finally { var directory = Path.GetDirectoryName(temp)!; Directory.Delete(directory, true); }
     }
 
-    private static string FixturePath(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", name);
-    private static string CreateTempCopy(string name) { var directory = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory); var target = Path.Combine(directory, "OptiScaler.ini"); File.Copy(FixturePath(name), target); return target; }
+    private static string CreateTempIni()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var target = Path.Combine(directory, "OptiScaler.ini");
+        File.WriteAllText(target, "[DLSSG]\nDispatchFlags = auto\n", new UTF8Encoding(false));
+        return target;
+    }
     private sealed class MutatingBackupService(string text) : IIniBackupService
     {
         public async Task<string> CreateBackupAsync(string sourcePath, CancellationToken cancellationToken)

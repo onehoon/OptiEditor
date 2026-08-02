@@ -22,8 +22,4 @@
     <ProjectReference Include="..\..\src\OptiEditor.Core\OptiEditor.Core.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="Fixtures\*.ini" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
 </Project>

@@ -10,58 +10,60 @@ public enum SettingAvailability { ExistingKeyOnly }
 public enum EditorVisibility { Visible, Hidden }
 public sealed record SettingOption(string Value, string Label);
 public sealed record SettingGroupDefinition(string Id, string DisplayName, int Order);
-public sealed record SettingDefinition(string Id, IniKey IniKey, string DisplayName, string Description, string GroupId, int Order, SettingValueKind ValueKind, bool SupportsAuto, IReadOnlyList<SettingOption> Options, double? Minimum = null, double? Maximum = null, bool IsAdvanced = false, SettingAvailability Availability = SettingAvailability.ExistingKeyOnly, EditorVisibility DefaultEditorVisibility = EditorVisibility.Visible);
+public sealed record SettingDefinition(string Id, IniKey IniKey, string DisplayName, string Description, string GroupId, int Order, SettingValueKind ValueKind, bool SupportsAuto, IReadOnlyList<SettingOption> Options, string DefaultRawValue = "auto", double? Minimum = null, double? Maximum = null, bool IsAdvanced = false, SettingAvailability Availability = SettingAvailability.ExistingKeyOnly, EditorVisibility DefaultEditorVisibility = EditorVisibility.Visible);
 public sealed record SettingValidationResult(bool IsValid, string? Error) { public static SettingValidationResult Valid { get; } = new(true, null); }
 public sealed class UnsupportedOptiSchemaException(OptiSchemaFamily family) : InvalidOperationException($"OptiScaler schema family '{family}' is not supported.");
 public interface IOptiSchemaProvider { OptiSchemaFamily Family { get; } IReadOnlyList<SettingGroupDefinition> Groups { get; } IReadOnlyList<SettingDefinition> Settings { get; } SettingDefinition? FindById(string id); }
 
 public abstract class OptiSchemaProviderBase : IOptiSchemaProvider
 {
-    protected static readonly SettingGroupDefinition[] CommonGroups = [new("upscaling", "Upscaling", 0), new("framegen", "Frame Generation", 1), new("fsr", "FSR", 2), new("dlss", "DLSS", 3), new("overlay", "Overlay", 4), new("image", "Image Quality", 5), new("shortcuts", "Shortcuts", 6), new("output", "Output Scaling", 7), new("resolution", "Resolution Overrides", 8), new("quality", "Quality Overrides", 9), new("display", "Display Overrides", 10), new("texture", "Texture Overrides", 11)];
-    protected OptiSchemaProviderBase(OptiSchemaFamily family, IEnumerable<SettingDefinition> settings) { Family = family; Settings = settings.OrderBy(x => CommonGroups.FirstOrDefault(group => group.Id == x.GroupId)?.Order ?? int.MaxValue).ThenBy(x => x.Order).ToArray(); }
-    public OptiSchemaFamily Family { get; } public IReadOnlyList<SettingGroupDefinition> Groups => CommonGroups; public IReadOnlyList<SettingDefinition> Settings { get; }
-    public SettingDefinition? FindById(string id) => Settings.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
-    protected static SettingOption O(string value, string label) => new(value, label);
-    protected static IReadOnlyList<SettingOption> Enum(params string[] values) => values.Select(x => O(x, x == "auto" ? "Auto" : x)).ToArray();
-    protected static IReadOnlyList<SettingOption> Bool() => [O("auto", "Auto"), O("true", "Enabled"), O("false", "Disabled")];
-    protected static SettingDefinition E(string id, string section, string key, string name, string group, int order, params string[] options) => new(id, new(section, key), name, "", group, order, SettingValueKind.Enum, true, Enum(options));
-    protected static SettingDefinition B(string id, string section, string key, string name, string group, int order) => new(id, new(section, key), name, "", group, order, SettingValueKind.Boolean, true, Bool());
-    protected static SettingDefinition D(string id, string section, string key, string name, string group, int order, double? min = null, double? max = null) => new(id, new(section, key), name, "", group, order, SettingValueKind.Double, true, [], min, max);
-    protected static IEnumerable<SettingDefinition> Common(string dx11, string dx12, string vk, string fgInput, string fgOutput)
+    protected OptiSchemaProviderBase(OptiSchemaFamily family)
     {
-        yield return E("upscalers.dx11", "Upscalers", "Dx11Upscaler", "DirectX 11 Upscaler", "upscaling", 0, dx11.Split(',')); yield return E("upscalers.dx12", "Upscalers", "Dx12Upscaler", "DirectX 12 Upscaler", "upscaling", 1, dx12.Split(',')); yield return E("upscalers.vulkan", "Upscalers", "VulkanUpscaler", "Vulkan Upscaler", "upscaling", 2, vk.Split(','));
-        yield return B("framegen.enabled", "FrameGen", "Enabled", "Enable Frame Generation", "framegen", 0); yield return E("framegen.input", "FrameGen", "FGInput", "Frame Generation Input", "framegen", 1, fgInput.Split(',')); yield return E("framegen.output", "FrameGen", "FGOutput", "Frame Generation Output", "framegen", 2, fgOutput.Split(',')); yield return E("framegen.frametime-source", "FrameGen", "FTInput", "Frame Time Source", "framegen", 3, "auto", "0", "1", "2"); yield return new("framegen.allowed-frame-ahead", new("FrameGen", "AllowedFrameAhead"), "Allowed Frame Ahead", "", "framegen", 4, SettingValueKind.Integer, true, [], 1, 3);
-        yield return B("fsrfg.allow-async", "FSRFG", "AllowAsync", "Allow Async", "framegen", 5); yield return B("fsrfg.pacing", "FSRFG", "FramePacingTuning", "Frame Pacing Tuning", "framegen", 6); yield return D("fsrfg.safety-margin", "FSRFG", "FPTSafetyMarginInMs", "Safety Margin (ms)", "framegen", 7, 0); yield return D("fsrfg.variance", "FSRFG", "FPTVarianceFactor", "Variance Factor", "framegen", 8, 0, 1);
-        yield return E("xefg.interpolation", "XeFG", "InterpolationCount", "XeFG Interpolation", "framegen", 9, "auto", "1", "2", "3"); yield return B("xefg.ui", "XeFG", "UIComposition", "XeFG UI Composition", "framegen", 10); yield return B("xefg.borderless", "XeFG", "ForceBorderless", "Force Borderless", "framegen", 11);
-        yield return E("fsr.upscaler-index", "FSR", "UpscalerIndex", "FSR Upscaler", "fsr", 0, "auto", "0", "1", "2"); yield return E("fsr.fg-index", "FSR", "FGIndex", "FSR Frame Generation", "fsr", 1, "auto", "0", "1"); yield return E("fsr.preset", "FSR", "Fsr4Preset", "FSR 4 Preset", "fsr", 2, "auto", "0", "1", "2", "3", "4", "5"); yield return B("fsr.watermark", "FSR", "Fsr4EnableWatermark", "Enable FSR Watermark", "fsr", 3); yield return B("fsr.no-amdxc", "FSR", "Fsr4DoNotLoadAmdxc64", "Do Not Load AMD XC", "fsr", 4); yield return B("fsr.agility", "FSR", "FsrAgilitySDKUpgrade", "Upgrade Agility SDK", "fsr", 5);
-        yield return B("dlss.enabled", "DLSS", "Enabled", "Enable DLSS", "dlss", 0); yield return B("dlss.render-preset-override", "DLSS", "RenderPresetOverride", "Override Render Preset", "dlss", 1); yield return E("dlss.render-preset", "DLSS", "RenderPresetForAll", "Render Preset", "dlss", 2, ["auto", .. Enumerable.Range(0, 16).Select(x => x.ToString(CultureInfo.InvariantCulture))]); yield return B("dlss.generic-app-id", "DLSS", "UseGenericAppIdWithDlss", "Use Generic App ID", "dlss", 3);
-        yield return B("overlay.menu", "Menu", "OverlayMenu", "Overlay Menu", "overlay", 0); yield return D("overlay.scale", "Menu", "Scale", "Overlay Scale", "overlay", 1, .5, 2); yield return B("overlay.disable-splash", "Menu", "DisableSplash", "Disable Splash", "overlay", 2); yield return B("overlay.show-fps", "Menu", "ShowFps", "Show FPS", "overlay", 3); yield return E("overlay.position", "Menu", "FpsOverlayPos", "FPS Position", "overlay", 4, "auto", "0", "1", "2", "3"); yield return E("overlay.type", "Menu", "FpsOverlayType", "FPS Overlay Type", "overlay", 5, "auto", "0", "1", "2", "3", "4", "5", "6");
-        yield return B("image.override-sharpness", "Sharpness", "OverrideSharpness", "Override Sharpness", "image", 0); yield return D("image.sharpness", "Sharpness", "Sharpness", "Sharpness", "image", 1, 0, 1); yield return B("image.cas", "CAS", "Enabled", "Enable CAS", "image", 2); yield return D("framerate.limit", "Framerate", "FramerateLimit", "Frame Rate Limit", "framegen", 12, 0);
-        yield return new("shortcuts.menu", new("Menu", "ShortcutKey"), "Overlay Menu Shortcut", "Press a virtual key or select Auto/Disabled.", "shortcuts", 0, SettingValueKind.Shortcut, true, []); yield return new("shortcuts.fps", new("Menu", "FpsShortcutKey"), "FPS Overlay Shortcut", "Press a virtual key or select Auto/Disabled.", "shortcuts", 1, SettingValueKind.Shortcut, true, []); yield return new("shortcuts.fps-cycle", new("Menu", "FpsCycleShortcutKey"), "FPS Display Mode Shortcut", "Press a virtual key or select Auto/Disabled.", "shortcuts", 2, SettingValueKind.Shortcut, true, []); yield return new("shortcuts.framegen", new("Menu", "FGShortcutKey"), "Frame Generation Shortcut", "Press a virtual key or select Auto/Disabled.", "shortcuts", 3, SettingValueKind.Shortcut, true, []);
-        yield return B("output.enabled", "OutputScaling", "Enabled", "Enable Output Scaling", "output", 0); yield return D("output.multiplier", "OutputScaling", "Multiplier", "Output Multiplier", "output", 1, .5, 3); yield return E("output.downscaler", "OutputScaling", "Downscaler", "Downscaler", "output", 2, "auto", "0", "1", "2", "3", "4", "5", "6", "7"); yield return B("resolution.enabled", "UpscaleRatio", "UpscaleRatioOverrideEnabled", "Enable Ratio Override", "resolution", 0); yield return D("resolution.value", "UpscaleRatio", "UpscaleRatioOverrideValue", "Override Ratio", "resolution", 1, double.Epsilon);
-        yield return B("quality.enabled", "QualityOverrides", "QualityRatioOverrideEnabled", "Enable custom quality ratios", "quality", 0); yield return D("quality.dlaa", "QualityOverrides", "QualityRatioDLAA", "DLAA ratio", "quality", 1, double.Epsilon); yield return D("quality.ultra-quality", "QualityOverrides", "QualityRatioUltraQuality", "Ultra Quality ratio", "quality", 2, double.Epsilon); yield return D("quality.quality", "QualityOverrides", "QualityRatioQuality", "Quality ratio", "quality", 3, double.Epsilon); yield return D("quality.balanced", "QualityOverrides", "QualityRatioBalanced", "Balanced ratio", "quality", 4, double.Epsilon); yield return D("quality.performance", "QualityOverrides", "QualityRatioPerformance", "Performance ratio", "quality", 5, double.Epsilon); yield return D("quality.ultra-performance", "QualityOverrides", "QualityRatioUltraPerformance", "Ultra Performance ratio", "quality", 6, double.Epsilon);
-        yield return B("hdr.force", "HDR", "ForceHDR", "Force HDR", "display", 0); yield return B("hdr.hdr10", "HDR", "UseHDR10", "Use HDR10", "display", 1); yield return B("hdr.skip", "HDR", "SkipColorSpace", "Skip Color Space", "display", 2); yield return B("vsync.override", "V-Sync", "OverrideVsync", "Override V-Sync", "display", 3); yield return B("vsync.force", "V-Sync", "ForceVsync", "Force V-Sync", "display", 4); yield return E("vsync.interval", "V-Sync", "SyncInterval", "Sync Interval", "display", 5, "auto", "0", "1", "2", "3"); yield return E("texture.anisotropy", "Anisotropy", "AnisotropyOverride", "Anisotropic Filtering", "texture", 0, "auto", "2", "4", "8", "16"); yield return B("texture.modify-comparison", "Anisotropy", "ModifyComparison", "Modify comparison filters", "texture", 1); yield return B("texture.modify-minmax", "Anisotropy", "ModifyMinMax", "Modify min/max filters", "texture", 2); yield return B("texture.skip-point", "Anisotropy", "SkipPointFilter", "Skip point filters", "texture", 3); yield return D("texture.mipmap-bias", "Mipmap", "MipmapBiasOverride", "Mipmap Bias", "texture", 4, -15, 15); yield return B("texture.mipmap-fixed", "Mipmap", "MipmapBiasFixedOverride", "Use fixed mipmap bias", "texture", 5); yield return B("texture.mipmap-scale", "Mipmap", "MipmapBiasScaleOverride", "Scale mipmap bias", "texture", 6); yield return B("texture.mipmap-all", "Mipmap", "MipmapBiasOverrideAll", "Override all mipmap bias", "texture", 7);
+        Family = family;
+        Settings = GeneratedOptiScalerSchemaCatalog.Create(family);
+        Groups = Settings.Select(x => x.GroupId).Distinct(StringComparer.OrdinalIgnoreCase).Select((id, order) => new SettingGroupDefinition(id, id, order)).ToArray();
+    }
+
+    public OptiSchemaFamily Family { get; }
+    public IReadOnlyList<SettingGroupDefinition> Groups { get; }
+    public IReadOnlyList<SettingDefinition> Settings { get; }
+    public SettingDefinition? FindById(string id)
+    {
+        var resolved = LegacyOptiSchemaIds.Resolve(id);
+        return Settings.FirstOrDefault(x => string.Equals(x.Id, resolved, StringComparison.OrdinalIgnoreCase));
     }
 }
-public sealed class Opti09SchemaProvider : OptiSchemaProviderBase
-{ public Opti09SchemaProvider() : base(OptiSchemaFamily.V09, Common("auto,fsr22,fsr31,xess,xess_12,fsr21_12,fsr22_12,fsr31_12,dlss", "auto,xess,fsr21,fsr22,fsr31,dlss", "auto,fsr21,fsr22,fsr31,xess,fsr21_12,fsr31_12,dlss", "auto,nofg,dlssg,nukems,fsrfg,upscaler,fsrfg30", "auto,nofg,fsrfg,xefg,nukems").Concat([B("fsr.update", "FSR", "Fsr4Update", "Enable FSR 4 Upgrade", "fsr", 10), B("fsr.int8", "FSR", "Fsr4ForceEnableInt8", "Force INT8 Model", "fsr", 11), B("fsr.debug", "FSR", "Fsr4EnableDebugView", "Enable FSR 4 Debug View", "fsr", 12)])) { } }
-public sealed class Opti10SchemaProvider : OptiSchemaProviderBase
-{ public Opti10SchemaProvider() : base(OptiSchemaFamily.V10, Common("auto,fsr22,fsr31,xess,xess_12,fsr21_12,fsr22_12,ffx_12,dlss", "auto,xess,fsr21,fsr22,ffx,dlss", "auto,fsr21,fsr22,ffx,xess,fsr21_12,ffx_12,dlss", "auto,nofg,dlssg,nvngxfg,fsrfg,upscaler,fsrfg30", "auto,nofg,fsrfg,xefg,nvngxfg,dlssg,dlssgwithnvngx").Concat([E("dlssg.interpolation", "DLSSG", "InterpolationCount", "DLSSG Interpolation", "framegen", 13, "auto", "1", "2", "3", "4", "5"), E("fsr.force-model", "FSR", "Fsr4ForceModel", "FSR 4 Model", "fsr", 10, "auto", "0", "1", "2"), E("image.shader", "Sharpness", "Shader", "Sharpness Shader", "image", 3, "auto", "rcas", "da", "lcda")])) { } }
+
+public sealed class Opti09SchemaProvider() : OptiSchemaProviderBase(OptiSchemaFamily.V09);
+public sealed class Opti10SchemaProvider() : OptiSchemaProviderBase(OptiSchemaFamily.V10);
+
 public sealed class OptiSchemaResolver
 {
-    private readonly IOptiSchemaProvider _v09 = new Opti09SchemaProvider(); private readonly IOptiSchemaProvider _v10 = new Opti10SchemaProvider();
+    private readonly IOptiSchemaProvider _v09 = new Opti09SchemaProvider();
+    private readonly IOptiSchemaProvider _v10 = new Opti10SchemaProvider();
     public IOptiSchemaProvider Resolve(OptiSchemaFamily family) => family switch { OptiSchemaFamily.V09 => _v09, OptiSchemaFamily.V10 => _v10, _ => throw new UnsupportedOptiSchemaException(family) };
 }
+
 public static class SettingValidator
 {
     public static SettingValidationResult Validate(SettingDefinition definition, string raw)
     {
-        if (string.IsNullOrWhiteSpace(raw)) return new(false, "A value is required."); if (raw.IndexOfAny(['\r', '\n', '\0']) >= 0) return new(false, "The value contains invalid characters."); if (definition.SupportsAuto && string.Equals(raw, "auto", StringComparison.OrdinalIgnoreCase)) return SettingValidationResult.Valid;
+        if (string.IsNullOrWhiteSpace(raw)) return new(false, "A value is required.");
+        if (raw.IndexOfAny(['\r', '\n', '\0']) >= 0) return new(false, "The value contains invalid characters.");
+        if (definition.SupportsAuto && string.Equals(raw, "auto", StringComparison.OrdinalIgnoreCase)) return SettingValidationResult.Valid;
         if (definition.ValueKind == SettingValueKind.Boolean && !bool.TryParse(raw, out _)) return new(false, "Select Auto, Enabled, or Disabled.");
-        if (definition.ValueKind == SettingValueKind.Enum && !definition.Options.Any(x => string.Equals(x.Value, raw, StringComparison.OrdinalIgnoreCase))) return new(false, "Select a supported option.");
-        if (definition.ValueKind == SettingValueKind.Integer && !int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)) return new(false, "Enter a valid integer.");
+        if (definition.ValueKind == SettingValueKind.Integer)
+        {
+            if (!long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var integer)) return new(false, "Enter a valid integer.");
+            if (definition.Minimum is not null && integer < definition.Minimum || definition.Maximum is not null && integer > definition.Maximum) return new(false, $"Enter a value from {definition.Minimum?.ToString(CultureInfo.InvariantCulture) ?? "-∞"} to {definition.Maximum?.ToString(CultureInfo.InvariantCulture) ?? "∞"}.");
+        }
         if (definition.ValueKind == SettingValueKind.Shortcut && !ShortcutValueConverter.TryParseKnown(raw, out _)) return new(false, "Enter Auto, -1, a decimal virtual key, or 0xNN.");
-        if (definition.ValueKind == SettingValueKind.Double && !double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)) return new(false, "Enter a valid number.");
-        if (definition.ValueKind is SettingValueKind.Integer or SettingValueKind.Double && double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var constrained) && ((definition.Minimum is { } min && constrained < min) || (definition.Maximum is { } max && constrained > max))) return new(false, "The value is outside the supported range."); return SettingValidationResult.Valid;
+        if (definition.ValueKind == SettingValueKind.Double)
+        {
+            if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)) return new(false, "Enter a valid number.");
+            if (definition.Minimum is not null && number < definition.Minimum || definition.Maximum is not null && number > definition.Maximum) return new(false, $"Enter a value from {definition.Minimum?.ToString(CultureInfo.InvariantCulture) ?? "-∞"} to {definition.Maximum?.ToString(CultureInfo.InvariantCulture) ?? "∞"}.");
+        }
+        if (definition.ValueKind == SettingValueKind.Enum && !definition.Options.Any(x => string.Equals(x.Value, raw, StringComparison.OrdinalIgnoreCase))) return new(false, "Select a supported option.");
+        return SettingValidationResult.Valid;
     }
 }

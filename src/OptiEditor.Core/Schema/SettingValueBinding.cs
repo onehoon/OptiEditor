@@ -22,5 +22,5 @@ public sealed class SettingValueBinding
 }
 public static class SettingBindingFactory
 {
-    public static IReadOnlyList<SettingValueBinding> CreateVisible(IOptiSchemaProvider provider, IniDocument document, ICollection<IniDiagnostic>? diagnostics = null) => provider.Settings.Where(x => document.Contains(x.IniKey)).Select(x => new SettingValueBinding(x, document.GetRawValue(x.IniKey)!)).ToArray();
+    public static IReadOnlyList<SettingValueBinding> CreateVisible(IOptiSchemaProvider provider, IniDocument document, ICollection<IniDiagnostic>? diagnostics = null) => provider.Settings.Select(x => new SettingValueBinding(x, document.GetRawValue(x.IniKey) ?? x.DefaultRawValue)).ToArray();
 }
