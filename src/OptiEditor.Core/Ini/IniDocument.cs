@@ -41,6 +41,13 @@ public sealed class IniDocument : IIniDocumentReader
         var sectionIndex = _lines.FindLastIndex(x => x is IniSectionLine section && string.Equals(section.SectionName, patch.Key.Section, StringComparison.OrdinalIgnoreCase));
         if (sectionIndex < 0) return Fail(patch, "The target section does not exist.");
         var insertAt = sectionIndex + 1; while (insertAt < _lines.Count && _lines[insertAt] is not IniSectionLine) insertAt++;
+        // The line directly before the insertion point can be the file's last
+        // physical line, which parses with an empty LineEnding when the file
+        // has no trailing newline. RenderText concatenates each line's text
+        // directly onto its own ending, so inserting after it without first
+        // giving it a real ending would glue the new key onto the same line.
+        var previousLine = _lines[insertAt - 1];
+        if (previousLine.LineEnding.Length == 0) previousLine.LineEnding = DominantLineEnding;
         _lines.Insert(insertAt, new IniKeyValueLine(0, "", DominantLineEnding, patch.Key.Section, patch.Key.Name, patch.Key.Name + "=", patch.NewValue, "", true));
         return new(patch.Key, true, true, false, null, patch.NewValue, null, null);
     }
@@ -50,10 +57,22 @@ public sealed class IniDocument : IIniDocumentReader
         var changed = false;
         for (var i = _lines.Count - 1; i >= 0; i--)
             if (_lines[i] is IniKeyValueLine line && KeyComparer.Equals(new(line.SectionName, line.KeyName), key))
-                if (line.IsInserted) { _lines.RemoveAt(i); changed = true; } else if (line.IsModified) { line.Revert(); changed = true; }
+                if (line.IsInserted) { RemoveInsertedLine(i); changed = true; } else if (line.IsModified) { line.Revert(); changed = true; }
         return changed;
     }
-    public void RevertAll() { for (var i = _lines.Count - 1; i >= 0; i--) if (_lines[i] is IniKeyValueLine line) { if (line.IsInserted) _lines.RemoveAt(i); else line.Revert(); } }
+    public void RevertAll() { for (var i = _lines.Count - 1; i >= 0; i--) if (_lines[i] is IniKeyValueLine line) { if (line.IsInserted) RemoveInsertedLine(i); else line.Revert(); } }
+    // Removing an inserted line can un-backfill the line before it (see the
+    // backfill in ApplyPatch): if that line is once again the file's true
+    // last line, it should go back to having no trailing ending, matching
+    // how it originally parsed. If something else still follows it -- e.g. a
+    // second inserted key that wasn't reverted -- it must keep a real
+    // ending, so the restore only fires when removal actually exposes it as
+    // the new last line.
+    private void RemoveInsertedLine(int index)
+    {
+        _lines.RemoveAt(index);
+        if (index - 1 >= 0 && index - 1 == _lines.Count - 1) _lines[index - 1].LineEnding = _lines[index - 1].OriginalLineEnding;
+    }
     public IniDocument Clone() => new(_lines.Select(x => x.Clone()), Encoding, HasBom, DominantLineEnding, _diagnostics);
     public string RenderText() => string.Concat(_lines.Select(x => x.Render() + x.LineEnding));
     public byte[] RenderBytes()

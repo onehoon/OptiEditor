@@ -33,7 +33,12 @@ public sealed class UserPresetStore(string? appData = null, IDiagnosticLogger? l
         await gate.WaitAsync(token);
         var tmp = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try { await using (var stream = File.Create(tmp)) await JsonSerializer.SerializeAsync(stream, presets.Where(x => x.Source == PresetSource.User), cancellationToken: token); File.Move(tmp, _path, true); }
-        finally { if (File.Exists(tmp)) File.Delete(tmp); gate.Release(); }
+        finally
+        {
+            try { if (File.Exists(tmp)) File.Delete(tmp); }
+            catch (Exception ex) { logger?.Error("Temporary preset file cleanup failed.", ex); }
+            finally { gate.Release(); }
+        }
     }
 }
 

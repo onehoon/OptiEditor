@@ -19,14 +19,40 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve upstream commits once for both generations
+        shell: pwsh
+        run: |
+          # Resolve release/0.9 and master to commit SHAs exactly once here,
+          # then pin both regeneration runs below to those SHAs. Previously
+          # each run independently re-resolved the live branch tip, so an
+          # upstream push landing between the two runs made the "did the
+          # generator produce different output for the same input"
+          # non-determinism check actually compare two DIFFERENT inputs and
+          # misreport a real (if oddly timed) upstream change as a generator
+          # bug.
+          function Resolve-Commit([string] $Ref) {
+            $result = git ls-remote "https://github.com/optiscaler/OptiScaler.git" "refs/heads/$Ref"
+            $match = $result | Select-Object -First 1
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($match)) { throw "Unable to resolve upstream branch '$Ref'." }
+            return ($match -split "\s+")[0]
+          }
+          "V09_SHA=$(Resolve-Commit 'release/0.9')" >> $env:GITHUB_ENV
+          "V10_SHA=$(Resolve-Commit 'master')" >> $env:GITHUB_ENV
       - name: Regenerate schema from upstream source
         shell: pwsh
-        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sync-OptiScalerSchema.ps1
+        # V09Ref/V10Ref stay as branch names -- they're only used for the
+        # generated header's display text -- while V09Commit/V10Commit pin
+        # the actual fetch to the SHAs resolved above. Passing the resolved
+        # SHA as V09Ref/V10Ref instead would change the header text itself
+        # (branch name -> SHA) even when nothing upstream changed, which
+        # would make git status see a diff and false-trigger an issue on
+        # every run.
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sync-OptiScalerSchema.ps1 -V09Commit $env:V09_SHA -V10Commit $env:V10_SHA
       - name: Regenerate a second time to rule out run-to-run non-determinism
         shell: pwsh
         run: |
           Copy-Item src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs "$env:RUNNER_TEMP/first-generation.cs"
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sync-OptiScalerSchema.ps1
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sync-OptiScalerSchema.ps1 -V09Commit $env:V09_SHA -V10Commit $env:V10_SHA
           $rerunDiff = Compare-Object (Get-Content "$env:RUNNER_TEMP/first-generation.cs") (Get-Content src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs)
           "IS_NONDETERMINISTIC=$(if ($rerunDiff) { 'true' } else { 'false' })" >> $env:GITHUB_ENV
       - name: Open or update an issue when upstream changed

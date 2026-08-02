@@ -37,7 +37,7 @@ public partial class EditorViewModel : ObservableObject
     private IniEditorSession? _session;
     public bool IsDirty => Settings.Any(x => x.IsModified);
     public bool CanSave => IsDirty && !Settings.Any(x => x.HasBlockingValidationError) && !IsBusy;
-    public async Task LoadAsync(OptiInstallation installation)
+    public async Task<bool> LoadAsync(OptiInstallation installation)
     {
         IsBusy = true;
         try
@@ -59,8 +59,9 @@ public partial class EditorViewModel : ObservableObject
                 Settings.Add(item);
             }
             StatusText = $"{Settings.Count} supported settings are available.";
+            return true;
         }
-        catch (Exception ex) { AppServices.Logger.Error("Editor load failed.", ex); StatusText = "Settings could not be loaded."; }
+        catch (Exception ex) { AppServices.Logger.Error("Editor load failed.", ex); StatusText = "Settings could not be loaded."; return false; }
         finally { IsBusy = false; OnPropertyChanged(nameof(CanSave)); }
     }
     public void Update(EditorSettingItemViewModel item) { item.Update(); OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); }
@@ -81,8 +82,16 @@ public partial class EditorViewModel : ObservableObject
             if (failure is not null) { StatusText = $"'{failure.Key.Section}.{failure.Key.Name}' could not be saved: {failure.Error}"; return false; }
             var result = await AppServices.IniFiles.SaveAsync(candidate, _session.Snapshot);
             if (!result.Success) { StatusText = result.Error ?? "Settings could not be saved."; return false; }
-            await LoadAsync(Installation!);
-            StatusText = "OptiScaler settings were saved successfully.";
+            // The disk write already succeeded at this point, so this method
+            // still reports success either way; only the status text
+            // distinguishes a refresh failure, since a failed reload leaves
+            // the session's snapshot stale (any further Save would otherwise
+            // be rejected as "changed externally" against a file only this
+            // save itself changed) until the user reloads manually.
+            var reloaded = await LoadAsync(Installation!);
+            StatusText = reloaded
+                ? "OptiScaler settings were saved successfully."
+                : "OptiScaler.ini was saved, but the editor could not refresh from disk. Select Reload before making further changes.";
             return true;
         }
         catch (Exception ex) { AppServices.Logger.Error("Editor save failed.", ex); StatusText = "Settings could not be saved."; return false; }

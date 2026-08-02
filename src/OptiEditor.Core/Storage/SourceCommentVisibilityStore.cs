@@ -14,5 +14,5 @@ public sealed class SourceCommentVisibilityStore(string? appData = null, IDiagno
 
     public Task<bool> LoadAsync(CancellationToken cancellationToken = default) => JsonFileStore.LoadAsync(_path, true, logger, cancellationToken);
 
-    public Task SaveAsync(bool isVisible, CancellationToken cancellationToken = default) => JsonFileStore.SaveAsync(_path, isVisible, null, cancellationToken);
+    public Task SaveAsync(bool isVisible, CancellationToken cancellationToken = default) => JsonFileStore.SaveAsync(_path, isVisible, null, logger, cancellationToken);
 }

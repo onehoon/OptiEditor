@@ -61,7 +61,12 @@ public static class SettingValidator
         if (definition.ValueKind == SettingValueKind.Shortcut && !ShortcutValueConverter.TryParseKnown(raw, out _)) return new(false, "Enter Auto, -1, a decimal virtual key, or 0xNN.");
         if (definition.ValueKind == SettingValueKind.Double)
         {
-            if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)) return new(false, "Enter a valid number.");
+            // double.TryParse recognizes the literal strings "NaN"/"Infinity"/
+            // "-Infinity" regardless of NumberStyles. NaN compares false against
+            // both Minimum and Maximum, so a range check alone would silently
+            // accept it; Infinity/-Infinity would only be caught when a bound
+            // happens to be set. Reject every non-finite value up front instead.
+            if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) || !double.IsFinite(number)) return new(false, "Enter a valid number.");
             if (definition.Minimum is not null && number < definition.Minimum || definition.Maximum is not null && number > definition.Maximum) return new(false, $"Enter a value from {definition.Minimum?.ToString(CultureInfo.InvariantCulture) ?? "-∞"} to {definition.Maximum?.ToString(CultureInfo.InvariantCulture) ?? "∞"}.");
         }
         if (definition.ValueKind == SettingValueKind.Enum && !definition.Options.Any(x => string.Equals(x.Value, raw, StringComparison.OrdinalIgnoreCase))) return new(false, "Select a supported option.");

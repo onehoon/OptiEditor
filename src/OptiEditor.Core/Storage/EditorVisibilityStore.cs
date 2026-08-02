@@ -25,7 +25,7 @@ public sealed class EditorVisibilityStore(string? appData = null, IDiagnosticLog
     public Task SaveAsync(IEnumerable<EditorVisibilityPreference> preferences, CancellationToken cancellationToken = default)
     {
         var distinct = preferences.GroupBy(x => (x.Family, x.Section), StringTupleComparer.Instance).Select(x => x.Last()).ToArray();
-        return JsonFileStore.SaveAsync(_path, distinct, null, cancellationToken);
+        return JsonFileStore.SaveAsync(_path, distinct, null, logger, cancellationToken);
     }
 
     private sealed class StringTupleComparer : IEqualityComparer<(OptiSchemaFamily Family, string SettingId)>

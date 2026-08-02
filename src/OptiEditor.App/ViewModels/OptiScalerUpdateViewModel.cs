@@ -195,14 +195,17 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
         if (results.Count == 0) return ReplacementOutcome.None;
         var replaced = results.Count(x => x.Status == OptiScalerReplacementStatus.Replaced);
         if (replaced == results.Count) return ReplacementOutcome.Completed;
-        if (replaced == 0 && results.All(x => x.Status == OptiScalerReplacementStatus.Canceled)) return ReplacementOutcome.Canceled;
-        // Targets that vanished, are busy, or are no longer identified as
-        // OptiScaler are Skipped rather than Failed; when every result is one
-        // of those, nothing actually went wrong, so it should not be reported
-        // the same way as an unexpected replacement failure.
-        if (replaced == 0 && results.All(x => x.Status == OptiScalerReplacementStatus.Skipped)) return ReplacementOutcome.Skipped;
-        if (replaced == 0) return ReplacementOutcome.Failed;
-        return ReplacementOutcome.PartiallyCompleted;
+        if (replaced > 0) return ReplacementOutcome.PartiallyCompleted;
+        // Below this point nothing was replaced. Rank the remaining statuses
+        // by how "wrong" they are rather than requiring every result to be
+        // exactly one status: a mix of e.g. Skipped and Canceled previously
+        // fell through both "all Canceled" and "all Skipped" checks and was
+        // misreported as Failed even though nothing had actually failed.
+        if (results.Any(x => x.Status == OptiScalerReplacementStatus.Failed)) return ReplacementOutcome.Failed;
+        if (results.Any(x => x.Status == OptiScalerReplacementStatus.Canceled)) return ReplacementOutcome.Canceled;
+        // Everything remaining is Skipped (vanished, busy, no longer
+        // OptiScaler, or multiple proxy DLLs) -- nothing actually went wrong.
+        return ReplacementOutcome.Skipped;
     }
 
     internal static string DescribeOutcome(IReadOnlyList<OptiScalerReplacementResult> results)

@@ -28,6 +28,6 @@ public sealed class StartupTabStore(string? appData = null, IDiagnosticLogger? l
     public Task SaveAsync(string tab, CancellationToken cancellationToken = default)
     {
         if (!StartupTabs.IsSupported(tab)) throw new ArgumentOutOfRangeException(nameof(tab));
-        return JsonFileStore.SaveAsync(_path, tab, null, cancellationToken);
+        return JsonFileStore.SaveAsync(_path, tab, null, logger, cancellationToken);
     }
 }

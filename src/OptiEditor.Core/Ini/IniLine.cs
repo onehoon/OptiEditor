@@ -6,7 +6,17 @@ public abstract class IniLine(int originalLineNumber, string originalText, strin
 {
     public int OriginalLineNumber { get; } = originalLineNumber;
     public string OriginalText { get; } = originalText;
-    public string LineEnding { get; } = lineEnding;
+    // The ending this line parsed with, kept so a backfill (below) can be
+    // undone later. Never reassigned after construction.
+    public string OriginalLineEnding { get; } = lineEnding;
+    // Settable internally only: a line that was the last line of a file with
+    // no trailing newline parses with LineEnding = "". If a new line is later
+    // inserted after it, that empty ending must be backfilled first, or the
+    // two lines render concatenated onto one physical line (see
+    // IniDocument.ApplyPatch). If that inserted line is later reverted and
+    // this is once again the file's last line, IniDocument restores
+    // LineEnding from OriginalLineEnding to undo the backfill.
+    public string LineEnding { get; internal set; } = lineEnding;
     public abstract IniLineKind Kind { get; }
     public abstract string Render();
     public abstract IniLine Clone();
@@ -16,7 +26,7 @@ public sealed class IniRawLine(int lineNumber, string text, string ending, IniLi
 {
     public override IniLineKind Kind { get; } = kind;
     public override string Render() => OriginalText;
-    public override IniLine Clone() => new IniRawLine(OriginalLineNumber, OriginalText, LineEnding, Kind);
+    public override IniLine Clone() { var copy = new IniRawLine(OriginalLineNumber, OriginalText, OriginalLineEnding, Kind); copy.LineEnding = LineEnding; return copy; }
 }
 
 public sealed class IniSectionLine(int lineNumber, string text, string ending, string sectionName) : IniLine(lineNumber, text, ending)
@@ -24,7 +34,7 @@ public sealed class IniSectionLine(int lineNumber, string text, string ending, s
     public string SectionName { get; } = sectionName;
     public override IniLineKind Kind => IniLineKind.Section;
     public override string Render() => OriginalText;
-    public override IniLine Clone() => new IniSectionLine(OriginalLineNumber, OriginalText, LineEnding, SectionName);
+    public override IniLine Clone() { var copy = new IniSectionLine(OriginalLineNumber, OriginalText, OriginalLineEnding, SectionName); copy.LineEnding = LineEnding; return copy; }
 }
 
 public sealed class IniKeyValueLine : IniLine
@@ -43,5 +53,5 @@ public sealed class IniKeyValueLine : IniLine
     public void SetValue(string value) => Value = value;
     public void Revert() => SetValue(OriginalValue);
     public override string Render() => IsModified ? _prefix + Value + _suffix : OriginalText;
-    public override IniLine Clone() { var copy = new IniKeyValueLine(OriginalLineNumber, OriginalText, LineEnding, SectionName, KeyName, _prefix, OriginalValue, _suffix, IsInserted); copy.SetValue(Value); return copy; }
+    public override IniLine Clone() { var copy = new IniKeyValueLine(OriginalLineNumber, OriginalText, OriginalLineEnding, SectionName, KeyName, _prefix, OriginalValue, _suffix, IsInserted); copy.LineEnding = LineEnding; copy.SetValue(Value); return copy; }
 }
