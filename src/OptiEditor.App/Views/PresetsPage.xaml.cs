@@ -55,8 +55,8 @@ public sealed partial class PresetsPage : Page
         if (_applyPreset is null) return;
         var search = ApplySearchBox.Text.Trim();
         foreach (var item in _allApplyGames.Where(x => string.IsNullOrWhiteSpace(search)
-            || x.Installation.GameDisplayName.Contains(search, StringComparison.OrdinalIgnoreCase)
-            || (x.Installation.GameExeName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
+            || x.GameDisplayName.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || (x.GameExeName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
             || x.Installation.InstallDirectory.Contains(search, StringComparison.OrdinalIgnoreCase)))
         {
             ApplyGames.Add(item);
@@ -170,9 +170,6 @@ public sealed partial class PresetsPage : Page
     private async void SavePreset_Click(object sender, RoutedEventArgs e)
     {
         var now = DateTimeOffset.UtcNow;
-        // _entryEditors only covers settings visible under the current editor
-        // visibility preferences. Entries for settings hidden (or otherwise not
-        // shown for editing) must be carried over untouched, not dropped.
         var editableIds = _entryEditors.Select(x => x.Definition.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var preservedEntries = _editingPreset?.Entries.Where(x => !editableIds.Contains(x.SettingId)) ?? [];
         var entries = preservedEntries.Concat(_entryEditors.Where(x => x.Included).Select(x => new PresetEntry(x.Definition.Id, x.Value))).ToArray();
@@ -190,10 +187,6 @@ public sealed partial class PresetsPage : Page
         var schema = AppServices.Schemas.Resolve(_editingFamily);
         var previous = _editingPreset?.Entries.ToDictionary(x => x.SettingId, x => x.RawValue, StringComparer.OrdinalIgnoreCase) ?? [];
         var current = preset.Entries.ToDictionary(x => x.SettingId, x => x.RawValue, StringComparer.OrdinalIgnoreCase);
-        // The review must describe the complete preset that will be saved,
-        // not only entries whose value differs from the previous version.
-        // Otherwise unchanged entries (for example FGInput/FGOutput) are
-        // persisted successfully but appear to be missing from the review.
         var settingIds = current.Keys
             .OrderBy(id => schema.FindById(id)?.Order ?? int.MaxValue)
             .ThenBy(id => id, StringComparer.OrdinalIgnoreCase)
@@ -221,9 +214,18 @@ public sealed partial class PresetsPage : Page
     }
 }
 
-public partial class ApplyGameItem(OptiInstallation installation) : ObservableObject
+public partial class ApplyGameItem : ObservableObject
 {
-    public OptiInstallation Installation { get; } = installation;
+    internal ApplyGameItem(OptiInstallation installation)
+    {
+        Installation = installation;
+        GameDisplayName = installation.GameDisplayName;
+        GameExeName = installation.GameExeName;
+    }
+
+    internal OptiInstallation Installation { get; }
+    public string GameDisplayName { get; }
+    public string? GameExeName { get; }
 
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
