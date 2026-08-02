@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using OptiEditor.App.Controls;
@@ -19,9 +21,10 @@ public sealed partial class PresetsPage : Page
     private List<PresetEntryEditor> _entryEditors = [];
     private PresetDefinition? _applyPreset;
     private bool _isApplying;
-    private readonly Dictionary<OptiInstallation, CheckBox> _applyChecks = [];
+    private readonly List<ApplyGameItem> _allApplyGames = [];
 
     public PresetsViewModel ViewModel { get; } = new();
+    public ObservableCollection<ApplyGameItem> ApplyGames { get; } = [];
     public PresetsPage() { InitializeComponent(); Loaded += async (_, _) => await ViewModel.LoadAsync(); }
 
     private async void Delete_Click(object sender, RoutedEventArgs e) { if ((sender as Button)?.Tag is PresetDefinition preset) { if (preset.Source != PresetSource.User) { ViewModel.StatusText = "Built-in presets cannot be deleted."; return; } await ViewModel.DeleteAsync(preset); } }
@@ -31,56 +34,65 @@ public sealed partial class PresetsPage : Page
 
     private void OpenApplyPage(PresetDefinition preset)
     {
-        _applyPreset = preset; _applyChecks.Clear(); ApplyTitle.Text = $"Apply: {preset.Name}"; ApplyVersion.Text = preset.Family == OptiSchemaFamily.V09 ? "Target Version: v0.9" : "Target Version: v0.10";
-        ApplySearchBox.Text = string.Empty; PresetList.Visibility = Visibility.Collapsed; PresetEditor.Visibility = Visibility.Collapsed; ApplyPresetPage.Visibility = Visibility.Visible; RenderApplyGames();
+        _applyPreset = preset;
+        _allApplyGames.Clear();
+        _allApplyGames.AddRange(AppServices.Installations.Installations
+            .Where(x => x.SchemaFamily == preset.Family)
+            .OrderBy(x => x.GameDisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new ApplyGameItem(x)));
+        ApplyTitle.Text = $"Apply: {preset.Name}";
+        ApplyVersion.Text = preset.Family == OptiSchemaFamily.V09 ? "Target Version: v0.9" : "Target Version: v0.10";
+        ApplySearchBox.Text = string.Empty;
+        PresetList.Visibility = Visibility.Collapsed;
+        PresetEditor.Visibility = Visibility.Collapsed;
+        ApplyPresetPage.Visibility = Visibility.Visible;
+        RenderApplyGames();
     }
 
     private void RenderApplyGames()
     {
-        ApplyGamesPanel.Children.Clear();
+        ApplyGames.Clear();
         if (_applyPreset is null) return;
         var search = ApplySearchBox.Text.Trim();
-        var games = AppServices.Installations.Installations.Where(x => x.SchemaFamily == _applyPreset.Family && (string.IsNullOrWhiteSpace(search) || x.GameDisplayName.Contains(search, StringComparison.OrdinalIgnoreCase) || (x.GameExeName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) || x.InstallDirectory.Contains(search, StringComparison.OrdinalIgnoreCase))).ToArray();
-        var cards = new List<FrameworkElement>();
-        foreach (var game in games)
+        foreach (var item in _allApplyGames.Where(x => string.IsNullOrWhiteSpace(search)
+            || x.GameDisplayName.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || (x.GameExeName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
+            || x.Installation.InstallDirectory.Contains(search, StringComparison.OrdinalIgnoreCase)))
         {
-            var check = _applyChecks.TryGetValue(game, out var existing) ? existing : new CheckBox { Tag = game, VerticalAlignment = VerticalAlignment.Top };
-            _applyChecks[game] = check;
-            var text = new StackPanel { Spacing = 2 }; text.Children.Add(new TextBlock { Text = game.GameDisplayName, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"] }); text.Children.Add(new TextBlock { Text = game.GameExeName }); text.Children.Add(new TextBlock { Text = game.InstallDirectory, TextWrapping = TextWrapping.Wrap });
-            var card = new Grid { Padding = new Thickness(12) }; card.Children.Add(text); check.HorizontalAlignment = HorizontalAlignment.Right; check.VerticalAlignment = VerticalAlignment.Top; Grid.SetColumn(check, 1); card.Children.Add(check);
-            card.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); card.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            cards.Add(new Border { BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"], BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Child = card });
+            ApplyGames.Add(item);
         }
-        for (var i = 0; i < cards.Count; i += 2)
-        {
-            var row = new Grid { ColumnSpacing = 12, Margin = new Thickness(0, 0, 0, 12) }; row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); row.Children.Add(cards[i]);
-            if (i + 1 < cards.Count) { Grid.SetColumn(cards[i + 1], 1); row.Children.Add(cards[i + 1]); }
-            ApplyGamesPanel.Children.Add(row);
-        }
-        ApplyAllCheckBox.IsChecked = games.Length > 0 && games.All(x => _applyChecks[x].IsChecked == true);
+        UpdateApplyAllState();
     }
 
+    private void UpdateApplyAllState() => ApplyAllCheckBox.IsChecked = ApplyGames.Count > 0 && ApplyGames.All(x => x.IsSelected);
     private void ApplySearch_TextChanged(object sender, TextChangedEventArgs e) => RenderApplyGames();
+    private void ApplyGameCheckBox_Click(object sender, RoutedEventArgs e) => UpdateApplyAllState();
     private void ApplyAll_Click(object sender, RoutedEventArgs e)
     {
         var value = ApplyAllCheckBox.IsChecked == true;
-        var search = ApplySearchBox.Text.Trim();
-        var visible = _applyPreset is null ? [] : AppServices.Installations.Installations.Where(x => x.SchemaFamily == _applyPreset.Family && (string.IsNullOrWhiteSpace(search) || x.GameDisplayName.Contains(search, StringComparison.OrdinalIgnoreCase) || (x.GameExeName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) || x.InstallDirectory.Contains(search, StringComparison.OrdinalIgnoreCase))).ToArray();
-        foreach (var game in visible) if (_applyChecks.TryGetValue(game, out var check)) check.IsChecked = value;
+        foreach (var item in ApplyGames) item.IsSelected = value;
+        UpdateApplyAllState();
     }
-    private void BackFromApply_Click(object sender, RoutedEventArgs e) { ApplyPresetPage.Visibility = Visibility.Collapsed; PresetList.Visibility = Visibility.Visible; _applyPreset = null; _applyChecks.Clear(); }
+    private void BackFromApply_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyPresetPage.Visibility = Visibility.Collapsed;
+        PresetList.Visibility = Visibility.Visible;
+        _applyPreset = null;
+        _allApplyGames.Clear();
+        ApplyGames.Clear();
+    }
 
     private async void ApplySelected_Click(object sender, RoutedEventArgs e)
     {
         var preset = _applyPreset;
         if (preset is null || _isApplying) return;
-        var selected = _applyChecks.Where(x => x.Value.IsChecked == true).Select(x => x.Key).ToArray();
+        var selected = _allApplyGames.Where(x => x.IsSelected).Select(x => x.Installation).ToArray();
         if (selected.Length == 0) { ViewModel.StatusText = "Select at least one game."; return; }
         var schema = AppServices.Schemas.Resolve(preset.Family);
         var entries = preset.Entries.ToArray();
         var lines = entries.Select(x => $"[{x.SettingId}] = {x.RawValue}").ToArray();
         if (!await SaveReviewDialog.ConfirmAsync(XamlRoot, "Review preset application", $"Apply '{preset.Name}' to {selected.Length} game(s).", lines)) return;
-        _isApplying = true; ApplySelectedButton.IsEnabled = false; BackFromApplyButton.IsEnabled = false; ApplySearchBox.IsEnabled = false; ApplyAllCheckBox.IsEnabled = false;
+        _isApplying = true; ApplySelectedButton.IsEnabled = false; BackFromApplyButton.IsEnabled = false; ApplySearchBox.IsEnabled = false; ApplyAllCheckBox.IsEnabled = false; ApplyPresetPage.IsHitTestVisible = false;
         var applied = 0; var failed = 0;
         foreach (var game in selected)
         {
@@ -93,7 +105,7 @@ public sealed partial class PresetsPage : Page
             }
             catch (Exception ex) { AppServices.Logger.Error($"Preset application failed: {game.InstallDirectory}", ex); failed++; }
         }
-        _isApplying = false; ApplySelectedButton.IsEnabled = true; BackFromApplyButton.IsEnabled = true; ApplySearchBox.IsEnabled = true; ApplyAllCheckBox.IsEnabled = true;
+        _isApplying = false; ApplySelectedButton.IsEnabled = true; BackFromApplyButton.IsEnabled = true; ApplySearchBox.IsEnabled = true; ApplyAllCheckBox.IsEnabled = true; ApplyPresetPage.IsHitTestVisible = true;
         ViewModel.StatusText = $"Preset applied to {applied} of {selected.Length} game(s). Failed: {failed}.";
         var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = "Preset application complete", Content = $"Applied: {applied}\nFailed: {failed}\nTotal selected: {selected.Length}", CloseButtonText = "OK", DefaultButton = ContentDialogButton.Close };
         await dialog.ShowAsync();
@@ -158,9 +170,6 @@ public sealed partial class PresetsPage : Page
     private async void SavePreset_Click(object sender, RoutedEventArgs e)
     {
         var now = DateTimeOffset.UtcNow;
-        // _entryEditors only covers settings visible under the current editor
-        // visibility preferences. Entries for settings hidden (or otherwise not
-        // shown for editing) must be carried over untouched, not dropped.
         var editableIds = _entryEditors.Select(x => x.Definition.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var preservedEntries = _editingPreset?.Entries.Where(x => !editableIds.Contains(x.SettingId)) ?? [];
         var entries = preservedEntries.Concat(_entryEditors.Where(x => x.Included).Select(x => new PresetEntry(x.Definition.Id, x.Value))).ToArray();
@@ -178,10 +187,6 @@ public sealed partial class PresetsPage : Page
         var schema = AppServices.Schemas.Resolve(_editingFamily);
         var previous = _editingPreset?.Entries.ToDictionary(x => x.SettingId, x => x.RawValue, StringComparer.OrdinalIgnoreCase) ?? [];
         var current = preset.Entries.ToDictionary(x => x.SettingId, x => x.RawValue, StringComparer.OrdinalIgnoreCase);
-        // The review must describe the complete preset that will be saved,
-        // not only entries whose value differs from the previous version.
-        // Otherwise unchanged entries (for example FGInput/FGOutput) are
-        // persisted successfully but appear to be missing from the review.
         var settingIds = current.Keys
             .OrderBy(id => schema.FindById(id)?.Order ?? int.MaxValue)
             .ThenBy(id => id, StringComparer.OrdinalIgnoreCase)
@@ -207,4 +212,21 @@ public sealed partial class PresetsPage : Page
         public bool Included { get; set; } = included;
         public string Value { get; set; } = value;
     }
+}
+
+public partial class ApplyGameItem : ObservableObject
+{
+    internal ApplyGameItem(OptiInstallation installation)
+    {
+        Installation = installation;
+        GameDisplayName = installation.GameDisplayName;
+        GameExeName = installation.GameExeName;
+    }
+
+    internal OptiInstallation Installation { get; }
+    public string GameDisplayName { get; }
+    public string? GameExeName { get; }
+
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
 }
