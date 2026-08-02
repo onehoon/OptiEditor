@@ -55,7 +55,9 @@ public partial class GamesViewModel : ObservableObject, IDisposable
         var results = _allInstallations.Where(x => string.IsNullOrEmpty(search)
             || x.GameDisplayName.Contains(search, StringComparison.OrdinalIgnoreCase)
             || x.InstallDirectory.Contains(search, StringComparison.OrdinalIgnoreCase)
-            || x.GameExeName?.Contains(search, StringComparison.OrdinalIgnoreCase) == true).ToList();
+            || x.GameExeName?.Contains(search, StringComparison.OrdinalIgnoreCase) == true)
+            .OrderBy(x => x.GameDisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
         Installations.Clear(); foreach (var installation in results) Installations.Add(installation);
         GameRows = results.Chunk(2).Select(items => new GameRow(items[0], items.Length > 1 ? items[1] : null)).ToArray();
         OnPropertyChanged(nameof(GameRows));
