@@ -91,7 +91,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     // "Replacement completed." regardless of outcome hid full-failure and
     // full-cancellation results behind a success-sounding status message.
     // Shared with the result dialog title so both agree on the outcome.
-    internal enum ReplacementOutcome { None, Completed, Canceled, Failed, PartiallyCompleted }
+    internal enum ReplacementOutcome { None, Completed, Canceled, Skipped, Failed, PartiallyCompleted }
 
     internal static ReplacementOutcome ClassifyOutcome(IReadOnlyList<OptiScalerReplacementResult> results)
     {
@@ -99,6 +99,11 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
         var replaced = results.Count(x => x.Status == OptiScalerReplacementStatus.Replaced);
         if (replaced == results.Count) return ReplacementOutcome.Completed;
         if (replaced == 0 && results.All(x => x.Status == OptiScalerReplacementStatus.Canceled)) return ReplacementOutcome.Canceled;
+        // Targets that vanished, are busy, or are no longer identified as
+        // OptiScaler are Skipped rather than Failed; when every result is one
+        // of those, nothing actually went wrong, so it should not be reported
+        // the same way as an unexpected replacement failure.
+        if (replaced == 0 && results.All(x => x.Status == OptiScalerReplacementStatus.Skipped)) return ReplacementOutcome.Skipped;
         if (replaced == 0) return ReplacementOutcome.Failed;
         return ReplacementOutcome.PartiallyCompleted;
     }
@@ -111,6 +116,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
         {
             ReplacementOutcome.Completed => $"Replacement completed. {replaced} of {results.Count} installation(s) were replaced.",
             ReplacementOutcome.Canceled => "Replacement was canceled. No installations were replaced.",
+            ReplacementOutcome.Skipped => $"No installations were replaced. All {results.Count} selected installation(s) were skipped (busy or no longer valid).",
             ReplacementOutcome.Failed => $"Replacement failed. 0 of {results.Count} installation(s) were replaced.",
             _ => $"Replacement partially completed. {replaced} of {results.Count} installation(s) were replaced.",
         };

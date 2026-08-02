@@ -28,6 +28,7 @@ public sealed partial class OptiScalerUpdatePage : Page
             OptiScalerUpdateViewModel.ReplacementOutcome.None => "Nothing to replace",
             OptiScalerUpdateViewModel.ReplacementOutcome.Completed => "Replacement completed",
             OptiScalerUpdateViewModel.ReplacementOutcome.Canceled => "Replacement canceled",
+            OptiScalerUpdateViewModel.ReplacementOutcome.Skipped => "Replacement skipped",
             OptiScalerUpdateViewModel.ReplacementOutcome.Failed => "Replacement failed",
             _ => "Replacement partially completed",
         };
