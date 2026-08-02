@@ -40,12 +40,19 @@ jobs:
           "V10_SHA=$(Resolve-Commit 'master')" >> $env:GITHUB_ENV
       - name: Regenerate schema from upstream source
         shell: pwsh
-        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sync-OptiScalerSchema.ps1 -V09Ref $env:V09_SHA -V10Ref $env:V10_SHA
+        # V09Ref/V10Ref stay as branch names -- they're only used for the
+        # generated header's display text -- while V09Commit/V10Commit pin
+        # the actual fetch to the SHAs resolved above. Passing the resolved
+        # SHA as V09Ref/V10Ref instead would change the header text itself
+        # (branch name -> SHA) even when nothing upstream changed, which
+        # would make git status see a diff and false-trigger an issue on
+        # every run.
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sync-OptiScalerSchema.ps1 -V09Commit $env:V09_SHA -V10Commit $env:V10_SHA
       - name: Regenerate a second time to rule out run-to-run non-determinism
         shell: pwsh
         run: |
           Copy-Item src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs "$env:RUNNER_TEMP/first-generation.cs"
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sync-OptiScalerSchema.ps1 -V09Ref $env:V09_SHA -V10Ref $env:V10_SHA
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sync-OptiScalerSchema.ps1 -V09Commit $env:V09_SHA -V10Commit $env:V10_SHA
           $rerunDiff = Compare-Object (Get-Content "$env:RUNNER_TEMP/first-generation.cs") (Get-Content src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs)
           "IS_NONDETERMINISTIC=$(if ($rerunDiff) { 'true' } else { 'false' })" >> $env:GITHUB_ENV
       - name: Open or update an issue when upstream changed

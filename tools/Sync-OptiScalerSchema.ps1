@@ -2,6 +2,14 @@ param(
     [string] $Repository = "optiscaler/OptiScaler",
     [string] $V09Ref = "release/0.9",
     [string] $V10Ref = "master",
+    # Optional pre-resolved commit SHAs to fetch against, letting a caller
+    # (the schema-sync workflow) pin two separate generation runs to the
+    # identical upstream commit. Kept separate from V09Ref/V10Ref -- which
+    # stay the human-readable branch names shown in the generated header --
+    # so pinning a commit doesn't also change the header text and trip the
+    # "did anything change" diff check on its own.
+    [string] $V09Commit,
+    [string] $V10Commit,
     [string] $OutputPath = "src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs"
 )
 
@@ -19,12 +27,6 @@ function Get-OptionalUpstreamText([string] $Ref, [string] $Path) {
 }
 
 function Get-Commit([string] $Ref) {
-    # A caller (the schema-sync workflow, resolving once up front so its two
-    # regenerate-and-compare runs target one pinned commit instead of each
-    # independently re-resolving the live branch tip) may already pass a
-    # resolved 40-hex-char SHA here. refs/heads/<sha> never matches, so that
-    # would otherwise fail to resolve; short-circuit and use it as-is.
-    if ($Ref -match '^[0-9a-fA-F]{40}$') { return $Ref }
     $result = git ls-remote "https://github.com/$Repository.git" "refs/heads/$Ref"
     $exitCode = $LASTEXITCODE
     $match = $result | Select-Object -First 1
@@ -227,8 +229,8 @@ function Render-Entries($Entries) {
     }) -join "`n")
 }
 
-$v09Commit = Get-Commit $V09Ref
-$v10Commit = Get-Commit $V10Ref
+$v09Commit = if ($V09Commit) { $V09Commit } else { Get-Commit $V09Ref }
+$v10Commit = if ($V10Commit) { $V10Commit } else { Get-Commit $V10Ref }
 # Fetch every upstream file for a pinned commit SHA, not the floating branch
 # name. Get-Entries makes several independent raw.githubusercontent.com
 # requests (OptiScaler.ini, Config.cpp/h, OptiTypes.h/cpp, menu_common.cpp);

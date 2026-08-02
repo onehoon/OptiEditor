@@ -47,6 +47,50 @@ public sealed class IniDocumentTests
     }
 
     [Fact]
+    public void Reverting_an_insert_after_a_file_with_no_trailing_newline_restores_exact_original_bytes()
+    {
+        // ApplyPatch backfills the preceding line's LineEnding from "" to
+        // DominantLineEnding so the inserted key doesn't concatenate onto
+        // it (see the test above). Reverting that insert must undo the
+        // backfill too, or IsDirty/ModifiedKeys report a clean document
+        // while RenderText still differs from the original bytes.
+        const string source = "[Section]\r\nExisting=1";
+        var doc = IniParser.Parse(source, new UTF8Encoding(false), false);
+        doc.ApplyPatch(new(new("Section", "NewKey"), "2"));
+        Assert.True(doc.Revert(new("Section", "NewKey")));
+        Assert.False(doc.IsDirty);
+        Assert.Empty(doc.ModifiedKeys);
+        Assert.Equal(source, doc.RenderText());
+    }
+
+    [Fact]
+    public void Reverting_one_of_two_trailing_inserts_keeps_the_remaining_insert_separated()
+    {
+        // If a second inserted key still follows the reverted one, the
+        // backfilled ending on the line before it must NOT be restored to
+        // "" -- that line is not the file's last line anymore, the
+        // remaining inserted key is, and it still needs a real separator.
+        const string source = "[Section]\r\nExisting=1";
+        var doc = IniParser.Parse(source, new UTF8Encoding(false), false);
+        doc.ApplyPatch(new(new("Section", "First"), "1"));
+        doc.ApplyPatch(new(new("Section", "Second"), "2"));
+        Assert.True(doc.Revert(new("Section", "First")));
+        Assert.Equal("[Section]\r\nExisting=1\r\nSecond=2\r\n", doc.RenderText());
+    }
+
+    [Fact]
+    public void RevertAll_after_multiple_trailing_inserts_restores_exact_original_bytes()
+    {
+        const string source = "[Section]\r\nExisting=1";
+        var doc = IniParser.Parse(source, new UTF8Encoding(false), false);
+        doc.ApplyPatch(new(new("Section", "First"), "1"));
+        doc.ApplyPatch(new(new("Section", "Second"), "2"));
+        doc.RevertAll();
+        Assert.False(doc.IsDirty);
+        Assert.Equal(source, doc.RenderText());
+    }
+
+    [Fact]
     public void Revert_restores_original_bytes_and_auto_is_a_distinct_value()
     {
         const string source = "[Test]\n  Key   =   auto   \n"; var doc = IniParser.Parse(source, new UTF8Encoding(false), false);
