@@ -37,3 +37,21 @@ jobs:
       - run: dotnet publish src/OptiEditor.App/OptiEditor.App.csproj -c Release -r win-x64 --self-contained false -o publish /p:Version=${{ steps.version.outputs.version }}
       - run: dotnet vpk pack --packId OptiEditor --packVersion ${{ steps.version.outputs.version }} --packDir publish --mainExe OptiEditor.exe --packTitle OptiEditor --packAuthors onehoon --runtime win10.0.17763-x64 --framework net10-x64-desktop
       - run: dotnet vpk upload github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --publish --releaseName "OptiEditor ${{ steps.version.outputs.version }}" --tag "v${{ steps.version.outputs.version }}"
+      - name: Keep the latest two releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $releases = gh release list --limit 100 --json tagName,isDraft,isPrerelease | ConvertFrom-Json
+          $managed = $releases |
+            Where-Object { -not $_.isDraft -and -not $_.isPrerelease -and $_.tagName -match '^v0\.1\.\d+$' } |
+            Sort-Object { [version]$_.tagName.TrimStart('v') } -Descending
+          $obsolete = $managed | Select-Object -Skip 2
+
+          foreach ($release in $obsolete) {
+            Write-Host "Deleting obsolete release and tag: $($release.tagName)"
+            gh release delete $release.tagName --yes
+            if ($LASTEXITCODE -ne 0) { throw "Release deletion failed: $($release.tagName)" }
+            gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/$($release.tagName)"
+            if ($LASTEXITCODE -ne 0) { throw "Tag deletion failed: $($release.tagName)" }
+          }

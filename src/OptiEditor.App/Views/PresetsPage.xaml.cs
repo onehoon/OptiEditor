@@ -1,6 +1,5 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using OptiEditor.App.Controls;
 using OptiEditor.App.Services;
 using OptiEditor.App.ViewModels;
@@ -21,20 +20,9 @@ public sealed partial class PresetsPage : Page
     public PresetsViewModel ViewModel { get; } = new();
     public PresetsPage() { InitializeComponent(); Loaded += async (_, _) => await ViewModel.LoadAsync(); }
 
-    private async void Duplicate_Click(object sender, RoutedEventArgs e) { if ((sender as Button)?.Tag is PresetDefinition preset) await ViewModel.DuplicateAsync(preset); }
     private async void Delete_Click(object sender, RoutedEventArgs e) { if ((sender as Button)?.Tag is PresetDefinition preset) { if (preset.Source != PresetSource.User) { ViewModel.StatusText = "Built-in presets cannot be deleted."; return; } await ViewModel.DeleteAsync(preset); } }
     private async void Create_Click(object sender, RoutedEventArgs e) => await OpenPresetEditorAsync(null, (sender as Button)?.Tag is "V09" ? OptiSchemaFamily.V09 : OptiSchemaFamily.V10);
-    private async void Edit_Click(object sender, RoutedEventArgs e) { if ((sender as Button)?.Tag is PresetDefinition preset) { if (preset.Source != PresetSource.User) { ViewModel.StatusText = "Built-in presets are read-only. Duplicate one to customize it."; return; } await OpenPresetEditorAsync(preset); } }
-
-    private async void Apply_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as Button)?.Tag is not PresetDefinition preset) return;
-        var candidates = AppServices.Installations.Installations.Where(x => x.SchemaFamily == preset.Family).ToArray();
-        if (candidates.Length == 0) { ViewModel.StatusText = "Scan and select a matching OptiScaler installation first."; return; }
-        var list = new ListView { ItemsSource = candidates, DisplayMemberPath = nameof(OptiInstallation.GameDisplayName), SelectionMode = ListViewSelectionMode.Single, SelectedIndex = 0, MinWidth = 420 };
-        var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = "Apply preset to game", Content = list, PrimaryButtonText = "Review changes", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary };
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary && list.SelectedItem is OptiInstallation installation) Frame.Navigate(typeof(EditorPage), new EditorNavigationRequest(installation, preset));
-    }
+    private async void Edit_Click(object sender, RoutedEventArgs e) { if ((sender as Button)?.Tag is PresetDefinition preset) { if (preset.Source != PresetSource.User) { ViewModel.StatusText = "Built-in presets are read-only."; return; } await OpenPresetEditorAsync(preset); } }
 
     private async Task OpenPresetEditorAsync(PresetDefinition? existing, OptiSchemaFamily? requestedFamily = null)
     {
@@ -50,7 +38,7 @@ public sealed partial class PresetsPage : Page
             .ToList();
 
         EditorTitle.Text = existing is null ? "Create preset" : "Edit preset";
-        EditorFamily.Text = $"Target family: {_editingFamily}";
+        EditorFamily.Text = _editingFamily == OptiSchemaFamily.V09 ? "Target Version: v0.9" : "Target Version: v0.10";
         PresetNameBox.Text = existing?.Name ?? string.Empty;
         PresetDescriptionBox.Text = existing?.Description ?? string.Empty;
         PresetSettingSearchBox.Text = string.Empty;
@@ -76,8 +64,8 @@ public sealed partial class PresetsPage : Page
             foreach (var entry in group)
             {
                 var row = new Grid { ColumnSpacing = 12 };
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 var label = new StackPanel { Spacing = 3 };
                 label.Children.Add(new TextBlock { Text = entry.Definition.DisplayName });
                 if (_showSourceComments && !string.IsNullOrWhiteSpace(entry.Definition.SourceComment)) label.Children.Add(new TextBlock { Text = entry.Definition.SourceComment, TextWrapping = TextWrapping.Wrap, Opacity = .7 });

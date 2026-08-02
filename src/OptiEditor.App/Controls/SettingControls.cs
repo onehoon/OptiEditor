@@ -97,7 +97,8 @@ public sealed class EnumSettingControl : SettingControlBase
         var combo = new ComboBox { MinWidth = 220 };
         if (definition.SupportsAuto) combo.Items.Add(new ComboBoxItem { Tag = "auto", Content = "Auto" });
         foreach (var option in definition.Options) combo.Items.Add(new ComboBoxItem { Tag = option.Value, Content = option.Label });
-        if (!definition.Options.Any(x => string.Equals(x.Value, currentRawValue, StringComparison.OrdinalIgnoreCase))) combo.Items.Add(new ComboBoxItem { Tag = currentRawValue, Content = $"Unknown (preserved): {currentRawValue}" });
+        var isAuto = definition.SupportsAuto && string.Equals(currentRawValue, "auto", StringComparison.OrdinalIgnoreCase);
+        if (!isAuto && !definition.Options.Any(x => string.Equals(x.Value, currentRawValue, StringComparison.OrdinalIgnoreCase))) combo.Items.Add(new ComboBoxItem { Tag = currentRawValue, Content = $"Unknown (preserved): {currentRawValue}" });
         combo.SelectedItem = combo.Items.OfType<ComboBoxItem>().FirstOrDefault(x => string.Equals((string)x.Tag, currentRawValue, StringComparison.OrdinalIgnoreCase));
         combo.SelectionChanged += (_, _) => { if (combo.SelectedItem is ComboBoxItem choice) SetValue((string)choice.Tag); };
         Children.Add(combo);

@@ -4,7 +4,6 @@ using OptiEditor.App.Services;
 using OptiEditor.Core.Ini;
 using OptiEditor.Core.Models;
 using OptiEditor.Core.Schema;
-using OptiEditor.Core.Presets;
 using OptiEditor.Core.Storage;
 
 namespace OptiEditor.App.ViewModels;
@@ -15,22 +14,17 @@ public partial class EditorSettingItemViewModel(SettingValueBinding binding) : O
     public string Description => binding.Definition.Description;
     public string GroupName => binding.Definition.GroupId;
     public string? GroupDisplayName { get; set; }
-    public bool IsFirstInGroup => GroupDisplayName is not null;
     public IReadOnlyList<SettingOption> Options => binding.Definition.Options;
-    public bool IsChoiceSetting => binding.Definition.ValueKind is SettingValueKind.Boolean or SettingValueKind.Enum;
-    public bool IsTextSetting => !IsChoiceSetting;
     public string InputHint => binding.Definition.ValueKind switch { SettingValueKind.Shortcut => "Auto, -1, decimal key, or 0xNN", SettingValueKind.Double => NumericHint("Number"), SettingValueKind.Integer => NumericHint("Integer"), _ => "Value" };
     private string NumericHint(string label) => $"{label}{(binding.Definition.Minimum is null ? "" : $" (min {binding.Definition.Minimum})")}{(binding.Definition.Maximum is null ? "" : $" (max {binding.Definition.Maximum})")}";
     [ObservableProperty] public partial string CurrentRawValue { get; set; } = binding.CurrentRawValue;
     [ObservableProperty] public partial string? ValidationError { get; set; } = binding.ValidationError;
-    public bool IsUnknownValue => binding.IsUnknownValue;
     public bool IsModified => binding.IsModified;
     public bool HasBlockingValidationError => binding.HasValidationError;
     public string? BlockingValidationMessage => HasBlockingValidationError ? ValidationError : null;
-    public bool HasUnknownValueWarning => IsUnknownValue && !IsModified;
-    public string? UnknownValueWarningMessage => HasUnknownValueWarning ? "Unknown value will be preserved unless changed." : null;
-    public void Update() { binding.SetRawValue(CurrentRawValue); ValidationError = binding.ValidationError; OnPropertyChanged(nameof(IsModified)); OnPropertyChanged(nameof(IsUnknownValue)); OnPropertyChanged(nameof(HasBlockingValidationError)); OnPropertyChanged(nameof(BlockingValidationMessage)); OnPropertyChanged(nameof(HasUnknownValueWarning)); OnPropertyChanged(nameof(UnknownValueWarningMessage)); }
-    public void Revert() { binding.Revert(); CurrentRawValue = binding.CurrentRawValue; ValidationError = binding.ValidationError; OnPropertyChanged(nameof(IsModified)); OnPropertyChanged(nameof(IsUnknownValue)); OnPropertyChanged(nameof(HasBlockingValidationError)); OnPropertyChanged(nameof(BlockingValidationMessage)); OnPropertyChanged(nameof(HasUnknownValueWarning)); OnPropertyChanged(nameof(UnknownValueWarningMessage)); }
+    public string? UnknownValueWarningMessage => binding.IsUnknownValue && !IsModified ? "Unknown value will be preserved unless changed." : null;
+    public void Update() { binding.SetRawValue(CurrentRawValue); ValidationError = binding.ValidationError; OnPropertyChanged(nameof(IsModified)); OnPropertyChanged(nameof(HasBlockingValidationError)); OnPropertyChanged(nameof(BlockingValidationMessage)); OnPropertyChanged(nameof(UnknownValueWarningMessage)); }
+    public void Revert() { binding.Revert(); CurrentRawValue = binding.CurrentRawValue; ValidationError = binding.ValidationError; OnPropertyChanged(nameof(IsModified)); OnPropertyChanged(nameof(HasBlockingValidationError)); OnPropertyChanged(nameof(BlockingValidationMessage)); OnPropertyChanged(nameof(UnknownValueWarningMessage)); }
     public SettingValueBinding Binding => binding;
 }
 
@@ -41,29 +35,37 @@ public partial class EditorViewModel : ObservableObject
     [ObservableProperty] public partial string StatusText { get; set; } = "Loading settings...";
     [ObservableProperty] public partial bool IsBusy { get; set; }
     private IniEditorSession? _session;
-    public bool IsDirty => Settings.Any(x => x.IsModified); public bool CanSave => IsDirty && !Settings.Any(x => x.HasBlockingValidationError) && !IsBusy;
+    public bool IsDirty => Settings.Any(x => x.IsModified);
+    public bool CanSave => IsDirty && !Settings.Any(x => x.HasBlockingValidationError) && !IsBusy;
     public async Task LoadAsync(OptiInstallation installation)
     {
-        IsBusy = true; try { Installation = installation; var provider = AppServices.Schemas.Resolve(installation.SchemaFamily); var visibility = await AppServices.EditorVisibility.LoadAsync(); _session = await new IniEditorSessionService(AppServices.IniFiles).OpenSessionAsync(installation); Settings.Clear(); string? previousGroup = null; foreach (var binding in SettingBindingFactory.CreateVisible(provider, _session.Document).Where(x => EditorVisibilityPolicy.Resolve(x.Definition, installation.SchemaFamily, visibility) == EditorVisibility.Visible)) { var item = new EditorSettingItemViewModel(binding); if (!string.Equals(previousGroup, binding.Definition.GroupId, StringComparison.Ordinal)) { item.GroupDisplayName = provider.Groups.FirstOrDefault(x => x.Id == binding.Definition.GroupId)?.DisplayName ?? binding.Definition.GroupId; previousGroup = binding.Definition.GroupId; } Settings.Add(item); } StatusText = $"{Settings.Count} supported settings are available."; }
+        IsBusy = true;
+        try
+        {
+            Installation = installation;
+            var provider = AppServices.Schemas.Resolve(installation.SchemaFamily);
+            var visibility = await AppServices.EditorVisibility.LoadAsync();
+            _session = await new IniEditorSessionService(AppServices.IniFiles).OpenSessionAsync(installation);
+            Settings.Clear();
+            string? previousGroup = null;
+            foreach (var binding in SettingBindingFactory.CreateVisible(provider, _session.Document).Where(x => EditorVisibilityPolicy.Resolve(x.Definition, installation.SchemaFamily, visibility) == EditorVisibility.Visible))
+            {
+                var item = new EditorSettingItemViewModel(binding);
+                if (!string.Equals(previousGroup, binding.Definition.GroupId, StringComparison.Ordinal))
+                {
+                    item.GroupDisplayName = provider.Groups.FirstOrDefault(x => x.Id == binding.Definition.GroupId)?.DisplayName ?? binding.Definition.GroupId;
+                    previousGroup = binding.Definition.GroupId;
+                }
+                Settings.Add(item);
+            }
+            StatusText = $"{Settings.Count} supported settings are available.";
+        }
         catch (Exception ex) { AppServices.Logger.Error("Editor load failed.", ex); StatusText = "Settings could not be loaded."; }
         finally { IsBusy = false; OnPropertyChanged(nameof(CanSave)); }
     }
     public void Update(EditorSettingItemViewModel item) { item.Update(); OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); }
     public void RevertAll() { foreach (var item in Settings) item.Revert(); StatusText = "Changes were reverted."; OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); }
-    public void ResetAllManagedToAuto()
-    {
-        foreach (var item in Settings.Where(x => x.Binding.Definition.SupportsAuto)) { item.CurrentRawValue = "auto"; item.Update(); }
-        StatusText = "Managed settings were reset to Auto. Select Save to update OptiScaler.ini."; OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave));
-    }
-    public bool ApplyPreset(PresetDefinition preset, IReadOnlyCollection<string>? selectedSettingIds = null)
-    {
-        if (_session is null || Installation is null) return false; var preview = new PresetPreviewService(AppServices.Schemas).Create(preset, Installation.SchemaFamily, _session.Document); if (!preview.CanApply) { StatusText = preview.Error ?? "This preset has no applicable settings."; return false; }
-        var selected = selectedSettingIds is null ? preview.Items : preview.Items.Select(x => x with { IsSelected = selectedSettingIds.Contains(x.Entry.SettingId) }).ToArray(); var selectedPreview = preview with { Items = selected }; if (!selectedPreview.CanApply) return false;
-        var schema = AppServices.Schemas.Resolve(Installation.SchemaFamily);
-        foreach (var item in Settings) { var changed = selectedPreview.Items.FirstOrDefault(x => x.IsSelected && string.Equals(schema.FindById(x.Entry.SettingId)?.Id, item.Binding.Definition.Id, StringComparison.OrdinalIgnoreCase)); if (changed is not null) { item.CurrentRawValue = changed.Entry.RawValue; item.Update(); } }
-        StatusText = "Preset applied to the editor. Review the changes and select Save to update OptiScaler.ini."; OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); return true;
-    }
-    public PresetApplicationPreview? CreatePresetPreview(PresetDefinition preset) => _session is null || Installation is null ? null : new PresetPreviewService(AppServices.Schemas).Create(preset, Installation.SchemaFamily, _session.Document);
+    public void ResetAllManagedToAuto() { foreach (var item in Settings.Where(x => x.Binding.Definition.SupportsAuto)) { item.CurrentRawValue = "auto"; item.Update(); } StatusText = "Managed settings were reset to Auto. Select Save to update OptiScaler.ini."; OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); }
     public async Task SaveAsync()
     {
         if (_session is null) return;
