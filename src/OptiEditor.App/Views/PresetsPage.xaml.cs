@@ -96,10 +96,31 @@ public sealed partial class PresetsPage : Page
     {
         var now = DateTimeOffset.UtcNow;
         var preset = new PresetDefinition(_editingPreset?.Id ?? Guid.NewGuid(), PresetNameBox.Text.Trim(), string.IsNullOrWhiteSpace(PresetDescriptionBox.Text) ? null : PresetDescriptionBox.Text.Trim(), _editingFamily, PresetSource.User, _entryEditors.Where(x => x.Included).Select(x => new PresetEntry(x.Definition.Id, x.Value)).ToArray(), _editingPreset?.CreatedAt ?? now, now);
+        var changes = CreatePresetSaveReview(preset);
+        if (!await SaveReviewDialog.ConfirmAsync(XamlRoot, "Review preset", "The following values will be saved in this preset.", changes)) return;
         var error = await ViewModel.SaveAsync(preset);
         if (error is not null) { ViewModel.StatusText = error; return; }
         ViewModel.StatusText = "Preset saved.";
         ClosePresetEditor();
+    }
+
+    private IReadOnlyList<string> CreatePresetSaveReview(PresetDefinition preset)
+    {
+        var schema = AppServices.Schemas.Resolve(_editingFamily);
+        var previous = _editingPreset?.Entries.ToDictionary(x => x.SettingId, x => x.RawValue, StringComparer.OrdinalIgnoreCase) ?? [];
+        var current = preset.Entries.ToDictionary(x => x.SettingId, x => x.RawValue, StringComparer.OrdinalIgnoreCase);
+        var settingIds = previous.Keys.Union(current.Keys, StringComparer.OrdinalIgnoreCase)
+            .Where(id => !previous.TryGetValue(id, out var before) || !current.TryGetValue(id, out var after) || !string.Equals(before, after, StringComparison.Ordinal))
+            .OrderBy(id => schema.FindById(id)?.Order ?? int.MaxValue)
+            .ThenBy(id => id, StringComparer.OrdinalIgnoreCase);
+
+        return settingIds.Select(id =>
+        {
+            var definition = schema.FindById(id);
+            var section = definition?.IniKey.Section ?? "Unknown";
+            var key = definition?.IniKey.Name ?? id;
+            return current.TryGetValue(id, out var value) ? $"[{section}] {key} = {value}" : $"[{section}] {key} = (removed)";
+        }).ToArray();
     }
 
     private void CancelPresetEdit_Click(object sender, RoutedEventArgs e) => ClosePresetEditor();

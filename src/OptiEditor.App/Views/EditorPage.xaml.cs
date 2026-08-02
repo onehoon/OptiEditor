@@ -21,7 +21,14 @@ public sealed partial class EditorPage : Page
         }
         else if (e.Parameter is OptiInstallation installation) { _showSourceComments = await Services.AppServices.SourceComments.LoadAsync(); await ViewModel.LoadAsync(installation); RenderSettings(); }
     }
-    private async void Save_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) => await ViewModel.SaveAsync();
+    private async void Save_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    {
+        if (!ViewModel.CanSave) return;
+        var changes = ViewModel.Settings
+            .Where(item => item.IsModified)
+            .Select(item => $"[{item.Binding.Definition.IniKey.Section}] {item.Binding.Definition.IniKey.Name} = {item.CurrentRawValue}");
+        if (await SaveReviewDialog.ConfirmAsync(XamlRoot, "Review changes", "The following values will be written to OptiScaler.ini.", changes)) await ViewModel.SaveAsync();
+    }
     private void RevertAll_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { ViewModel.RevertAll(); RenderSettings(); }
     private void ResetAll_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { ViewModel.ResetAllManagedToAuto(); RenderSettings(); }
     private async void Reload_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { if (ViewModel.Installation is { } installation) { await ViewModel.LoadAsync(installation); RenderSettings(); } }
