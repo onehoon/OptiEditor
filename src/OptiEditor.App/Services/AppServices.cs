@@ -28,8 +28,7 @@ public static class AppServices
     {
         var user = (await Presets.LoadAsync()).ToList();
         var deleted = await LoadDeletedBuiltInPresetIdsAsync();
-        user.RemoveAll(x => deleted.Contains(x.Id));
-        var changed = false;
+        var changed = user.RemoveAll(x => deleted.Contains(x.Id)) > 0;
         foreach (var builtIn in BuiltInPresets.GetAll())
         {
             if (deleted.Contains(builtIn.Id) || user.Any(x => x.Id == builtIn.Id) || user.Any(x => x.Family == builtIn.Family && string.Equals(x.Name, builtIn.Name, StringComparison.OrdinalIgnoreCase))) continue;
