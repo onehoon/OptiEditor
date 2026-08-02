@@ -47,7 +47,9 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     public bool IsIndividualSelectionEnabled => !IsBulkMode && !IsBusy && !AppServices.Installations.IsScanning;
     public int SelectedCount => Items.Count(x => x.IsSelected);
     public bool CanReplace => Source is not null && !IsBusy && !AppServices.Installations.IsScanning && SelectedCount > 0;
-    public string SourceDetails => Source is null ? "No source file selected" : $"{Source.Path}\nFile version: {Source.FileVersion}\nProduct version: {Source.ProductVersion ?? "Not available"}\nSize: {Source.FileSize:N0} bytes";
+    public string SourceDetails => Source is null ? "No source file selected" : $"{Source.Path}\nFile version: {Source.FileVersion}\nProduct version: {Source.ProductVersion ?? "Not available"}";
+    public bool HasSourceError => !string.IsNullOrWhiteSpace(SourceError);
+    public bool HasStatusText => !string.IsNullOrWhiteSpace(StatusText);
     public IEnumerable<OptiScalerUpdateItemViewModel> FilteredItems => Items.Where(MatchesSearch);
 
     public void SelectSource(string path)
@@ -55,10 +57,12 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
         var validation = AppServices.OptiScalerSourceValidator.Validate(path);
         Source = validation.Source;
         SourceError = validation.Error;
-        StatusText = validation.IsValid ? "Source OptiScaler binary selected." : "Source selection failed.";
+        StatusText = validation.IsValid ? "" : "Source selection failed.";
         OnPropertyChanged(nameof(CanReplace));
     }
     partial void OnSourceChanged(SourceOptiScalerBinary? value) { OnPropertyChanged(nameof(SourceDetails)); OnPropertyChanged(nameof(CanReplace)); }
+    partial void OnSourceErrorChanged(string? value) => OnPropertyChanged(nameof(HasSourceError));
+    partial void OnStatusTextChanged(string value) => OnPropertyChanged(nameof(HasStatusText));
 
     public async Task<IReadOnlyList<OptiScalerReplacementResult>> ReplaceAsync(CancellationToken cancellationToken = default)
     {
@@ -155,4 +159,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     }
 }
 
-public sealed record OptiScalerUpdateRow(OptiScalerUpdateItemViewModel First, OptiScalerUpdateItemViewModel? Second);
+public sealed record OptiScalerUpdateRow(OptiScalerUpdateItemViewModel First, OptiScalerUpdateItemViewModel? Second)
+{
+    public bool HasSecond => Second is not null;
+}
