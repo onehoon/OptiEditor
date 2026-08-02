@@ -1,7 +1,45 @@
 <Page x:Class="OptiEditor.App.Views.PresetsPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:local="using:OptiEditor.App.Views"
       xmlns:vm="using:OptiEditor.App.ViewModels">
+    <Page.Resources>
+        <DataTemplate x:Key="ApplyGameCardTemplate" x:DataType="local:ApplyGameItem">
+            <Border
+                MinWidth="0"
+                Padding="12"
+                HorizontalAlignment="Stretch"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="2">
+                        <TextBlock
+                            Text="{x:Bind Installation.GameDisplayName}"
+                            Style="{StaticResource SubtitleTextBlockStyle}"
+                            MaxLines="1"
+                            TextTrimming="CharacterEllipsis"/>
+                        <TextBlock
+                            Text="{x:Bind Installation.GameExeName}"
+                            MaxLines="1"
+                            TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                    <CheckBox
+                        Grid.Column="1"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
+                        Click="ApplyGameCheckBox_Click"/>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Page.Resources>
+
     <Grid Padding="24">
         <Grid x:Name="PresetList">
             <Grid RowSpacing="12">
@@ -16,7 +54,23 @@
             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
             <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock x:Name="ApplyTitle" Style="{StaticResource TitleTextBlockStyle}"/><TextBlock x:Name="ApplyVersion" Opacity="0.7"/></StackPanel><StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"><Button x:Name="ApplySelectedButton" Content="Apply Selected" Click="ApplySelected_Click"/><Button x:Name="BackFromApplyButton" Content="Back" Click="BackFromApply_Click"/></StackPanel></Grid>
             <Grid Grid.Row="1" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><CheckBox x:Name="ApplyAllCheckBox" Content="All" Click="ApplyAll_Click"/><TextBox x:Name="ApplySearchBox" Grid.Column="1" PlaceholderText="Search games" TextChanged="ApplySearch_TextChanged" Height="36" Padding="12,2,12,0" VerticalContentAlignment="Center"/></Grid>
-            <ScrollViewer Grid.Row="2"><StackPanel x:Name="ApplyGamesPanel" Spacing="8"/></ScrollViewer>
+            <ScrollViewer Grid.Row="2" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+                <ItemsRepeater
+                    x:Name="ApplyGamesRepeater"
+                    ItemsSource="{x:Bind ApplyGames, Mode=OneWay}"
+                    ItemTemplate="{StaticResource ApplyGameCardTemplate}"
+                    HorizontalAlignment="Stretch">
+                    <ItemsRepeater.Layout>
+                        <UniformGridLayout
+                            Orientation="Horizontal"
+                            MinItemWidth="480"
+                            MinColumnSpacing="12"
+                            MinRowSpacing="12"
+                            ItemsStretch="Fill"
+                            ItemsJustification="Start"/>
+                    </ItemsRepeater.Layout>
+                </ItemsRepeater>
+            </ScrollViewer>
         </Grid>
 
         <Grid x:Name="PresetEditor" Visibility="Collapsed" RowSpacing="12">
