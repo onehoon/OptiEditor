@@ -1,13 +1,125 @@
-<Page x:Class="OptiEditor.App.Views.GamesPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:models="using:OptiEditor.Core.Models" xmlns:vm="using:OptiEditor.App.ViewModels">
-  <Page.Resources>
-    <DataTemplate x:Key="GameCardTemplate" x:DataType="models:OptiInstallation">
-      <Border Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
-        <StackPanel Spacing="4"><TextBlock Text="{x:Bind GameDisplayName}" Style="{StaticResource SubtitleTextBlockStyle}"/><TextBlock Text="{x:Bind GameExeName}"/><TextBlock><Run Text="{x:Bind OptiBinaryFileName}"/><Run Text=" ("/><Run Text="{x:Bind FileVersion}"/><Run Text=")"/></TextBlock><TextBlock Text="{x:Bind InstallDirectory}" TextWrapping="Wrap"/><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Edit Settings" Click="EditSettings_Click" Tag="{x:Bind}"/><Button Content="Open Folder" Click="OpenFolder_Click" Tag="{x:Bind InstallDirectory}"/><Button Content="Copy Path" Click="CopyPath_Click" Tag="{x:Bind IniPath}"/></StackPanel></StackPanel>
-      </Border>
-    </DataTemplate>
-  </Page.Resources>
-  <Grid Padding="24" RowSpacing="16"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-    <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Games" Style="{StaticResource TitleTextBlockStyle}" VerticalAlignment="Center"/><StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"><TextBox Width="280" Height="36" Padding="12,4,12,0" PlaceholderText="Search games or folders" VerticalContentAlignment="Center" Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/><Button Content="Scan" Click="Rescan_Click" Style="{StaticResource AccentButtonStyle}" IsEnabled="{x:Bind ViewModel.IsScanning, Mode=OneWay, Converter={StaticResource BooleanNegationConverter}}"/><Button Content="Cancel" Click="Cancel_Click" Visibility="{x:Bind ViewModel.IsScanning, Mode=OneWay}"/><ProgressRing IsActive="{x:Bind ViewModel.IsScanning, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsScanning, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}" Width="24" Height="24"/></StackPanel></Grid>
-    <Grid Grid.Row="1"><ScrollViewer HorizontalScrollMode="Disabled"><ItemsControl ItemsSource="{x:Bind ViewModel.GameRows, Mode=OneWay}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:GameRow"><Grid Margin="0,0,0,12" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><ContentPresenter Content="{x:Bind First}" ContentTemplate="{StaticResource GameCardTemplate}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/><ContentPresenter Grid.Column="1" Content="{x:Bind Second}" ContentTemplate="{StaticResource GameCardTemplate}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Visibility="{x:Bind HasSecond, Converter={StaticResource BooleanToVisibilityConverter}}"/></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer><TextBlock Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid>
-  </Grid>
+<Page
+    x:Class="OptiEditor.App.Views.GamesPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:OptiEditor.Core.Models">
+
+    <Page.Resources>
+        <DataTemplate x:Key="GameCardTemplate" x:DataType="models:OptiInstallation">
+            <Border
+                MinWidth="0"
+                Padding="16"
+                HorizontalAlignment="Stretch"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+                <StackPanel Spacing="4">
+                    <TextBlock
+                        Text="{x:Bind GameDisplayName}"
+                        Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <TextBlock Text="{x:Bind GameExeName}" />
+                    <TextBlock>
+                        <Run Text="{x:Bind OptiBinaryFileName}" />
+                        <Run Text=" (" />
+                        <Run Text="{x:Bind FileVersion}" />
+                        <Run Text=")" />
+                    </TextBlock>
+                    <TextBlock
+                        Text="{x:Bind InstallDirectory}"
+                        TextWrapping="Wrap" />
+                    <StackPanel
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <Button
+                            Content="Edit Settings"
+                            Click="EditSettings_Click"
+                            Tag="{x:Bind}" />
+                        <Button
+                            Content="Open Folder"
+                            Click="OpenFolder_Click"
+                            Tag="{x:Bind InstallDirectory}" />
+                        <Button
+                            Content="Copy Path"
+                            Click="CopyPath_Click"
+                            Tag="{x:Bind IniPath}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </Page.Resources>
+
+    <Grid
+        Padding="24"
+        RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock
+                Text="Games"
+                Style="{StaticResource TitleTextBlockStyle}"
+                VerticalAlignment="Center" />
+
+            <StackPanel
+                Grid.Column="1"
+                Orientation="Horizontal"
+                Spacing="8">
+                <TextBox
+                    Width="280"
+                    Height="36"
+                    Padding="12,4,12,0"
+                    PlaceholderText="Search games or folders"
+                    VerticalContentAlignment="Center"
+                    Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <Button
+                    Content="Scan"
+                    Click="Rescan_Click"
+                    Style="{StaticResource AccentButtonStyle}"
+                    IsEnabled="{x:Bind ViewModel.IsScanning, Mode=OneWay, Converter={StaticResource BooleanNegationConverter}}" />
+                <Button
+                    Content="Cancel"
+                    Click="Cancel_Click"
+                    Visibility="{x:Bind ViewModel.IsScanning, Mode=OneWay}" />
+                <ProgressRing
+                    Width="24"
+                    Height="24"
+                    IsActive="{x:Bind ViewModel.IsScanning, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.IsScanning, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <ScrollViewer
+                HorizontalScrollMode="Disabled"
+                HorizontalScrollBarVisibility="Disabled">
+                <ItemsRepeater
+                    ItemsSource="{x:Bind ViewModel.Installations, Mode=OneWay}"
+                    ItemTemplate="{StaticResource GameCardTemplate}"
+                    HorizontalAlignment="Stretch">
+                    <ItemsRepeater.Layout>
+                        <UniformGridLayout
+                            Orientation="Horizontal"
+                            MinItemWidth="480"
+                            MinColumnSpacing="12"
+                            MinRowSpacing="12"
+                            ItemsStretch="Fill"
+                            ItemsJustification="Start" />
+                    </ItemsRepeater.Layout>
+                </ItemsRepeater>
+            </ScrollViewer>
+
+            <TextBlock
+                Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center" />
+        </Grid>
+    </Grid>
 </Page>
