@@ -39,6 +39,9 @@ public sealed class SchemaTests
         var menuScale = schema.FindById("Menu.Scale")!;
         Assert.Equal(SettingValueKind.Enum, menuScale.ValueKind);
         Assert.Equal(["0.5", "0.6", "0.7", "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "2.0"], menuScale.Options.Select(x => x.Value));
+        var xeFgInterpolation = schema.FindById("XeFG.InterpolationCount")!;
+        Assert.Equal(SettingValueKind.Enum, xeFgInterpolation.ValueKind);
+        Assert.Equal(["1", "2", "3"], xeFgInterpolation.Options.Select(x => x.Value));
     }
 
     [Fact]
@@ -51,6 +54,49 @@ public sealed class SchemaTests
         var downscaler = schema.FindById("OutputScaling.Downscaler")!;
         Assert.False(SettingValidator.Validate(downscaler, "8").IsValid);
         Assert.True(SettingValidator.Validate(downscaler, "7").IsValid);
+        var xeFgInterpolation = schema.FindById("XeFG.InterpolationCount")!;
+        Assert.False(SettingValidator.Validate(xeFgInterpolation, "4").IsValid);
+        Assert.True(SettingValidator.Validate(xeFgInterpolation, "3").IsValid);
+        var hudLimit = schema.FindById("OptiFG.HUDLimit")!;
+        Assert.Equal(SettingInputKind.Stepper, hudLimit.InputKind);
+        Assert.False(SettingValidator.Validate(hudLimit, "0").IsValid);
+        Assert.True(SettingValidator.Validate(hudLimit, "1").IsValid);
+        var networkModel = schema.FindById("XeSS.NetworkModel")!;
+        Assert.Equal(SettingValueKind.Enum, networkModel.ValueKind);
+        Assert.Equal(["KPSS", "Splat", "Model 3", "Model 4", "Model 5", "Model 6"], networkModel.Options.Select(x => x.Label));
+        Assert.False(SettingValidator.Validate(networkModel, "6").IsValid);
+        var upscalerBackend = schema.FindById("FSR.UpscalerIndex")!;
+        Assert.Equal(SettingValueKind.Enum, upscalerBackend.ValueKind);
+        Assert.Equal(["FSR 4.0.2", "FSR 3.1.5", "FSR 2.3.4"], upscalerBackend.Options.Select(x => x.Label));
+        Assert.False(SettingValidator.Validate(upscalerBackend, "3").IsValid);
+
+        var vendor = schema.FindById("Spoofing.SpoofedVendorId")!;
+        Assert.Equal(SettingValueKind.Enum, vendor.ValueKind);
+        Assert.Equal(["0x10de", "0x8086", "0x1002"], vendor.Options.Select(x => x.Value));
+        Assert.True(SettingValidator.Validate(vendor, "0x1002").IsValid);
+        Assert.False(SettingValidator.Validate(vendor, "4098").IsValid);
+        var device = schema.FindById("Spoofing.SpoofedDeviceId")!;
+        Assert.Equal(["RTX 4090 (0x2684)", "Intel Arc B580 (0xE20B)", "Radeon RX 9070 XT (0x7550)"], device.Options.Select(x => x.Label));
+        Assert.Equal(["Top Left", "Top Right", "Bottom Left", "Bottom Right"], schema.FindById("Menu.FpsOverlayPos")!.Options.Select(x => x.Label));
+        Assert.Equal(["Just FPS", "Simple", "Detailed", "Detailed + Graph", "Full", "Full + Graph", "Reflex timings"], schema.FindById("Menu.FpsOverlayType")!.Options.Select(x => x.Label));
+        Assert.Equal(["0", "1", "2", "3", "4"], schema.FindById("Log.LogLevel")!.Options.Select(x => x.Value));
+        Assert.Equal(["1", "2", "3", "4", "5"], schema.FindById("DLSSG.InterpolationCount")!.Options.Select(x => x.Value));
+
+        var qualityRatio = schema.FindById("QualityOverrides.QualityRatioBalanced")!;
+        Assert.Equal(SettingValueKind.Double, qualityRatio.ValueKind);
+        Assert.Equal(SettingInputKind.Text, qualityRatio.InputKind);
+        Assert.Equal("Balanced", qualityRatio.DisplayName);
+        Assert.True(SettingValidator.Validate(qualityRatio, "1.7").IsValid);
+        Assert.True(SettingValidator.Validate(qualityRatio, "auto").IsValid);
+
+        var fpsOverlay = schema.FindById("Menu.FpsOverlayType")!;
+        Assert.Contains("FPS overlay type", fpsOverlay.SourceComment, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(';', fpsOverlay.SourceComment);
+
+        var anisotropyChoices = schema.FindById("Anisotropy.AnisotropyOverride")!;
+        Assert.Equal(SettingValueKind.Enum, anisotropyChoices.ValueKind);
+        Assert.Equal(["2", "4", "8", "16"], anisotropyChoices.Options.Select(x => x.Value));
+        Assert.False(SettingValidator.Validate(anisotropyChoices, "6").IsValid);
     }
 
     [Fact]
@@ -66,6 +112,14 @@ public sealed class SchemaTests
     {
         var folder = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(folder);
         try { var store = new EditorVisibilityStore(folder); await store.SaveAsync([new(OptiSchemaFamily.V09, "Plugins", EditorVisibility.Hidden)]); var item = Assert.Single(await store.LoadAsync()); Assert.Equal("Plugins", item.Section); }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    [Fact]
+    public async Task Source_comment_visibility_defaults_to_visible_and_round_trips()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(folder);
+        try { var store = new SourceCommentVisibilityStore(folder); Assert.True(await store.LoadAsync()); await store.SaveAsync(false); Assert.False(await store.LoadAsync()); }
         finally { Directory.Delete(folder, true); }
     }
 }

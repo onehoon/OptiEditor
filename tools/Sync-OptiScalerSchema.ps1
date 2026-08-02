@@ -26,7 +26,7 @@ function Get-Commit([string] $Ref) {
     return ($match -split "\s+")[0]
 }
 
-function Escape-CSharp([string] $Value) { return $Value.Replace("\\", "\\\\").Replace('"', '\\"') }
+function Escape-CSharp([string] $Value) { return $Value.Replace('\', '\\').Replace('"', '\"').Replace("`r`n", '\n').Replace("`n", '\n').Replace("`r", '\n') }
 function Format-CSharpNumber($Value) {
     if ($null -eq $Value) { return 'null' }
     $text = "$Value".TrimEnd('.')
@@ -148,11 +148,14 @@ function Get-Entries([string] $Ref) {
     $menuSource = Get-UpstreamText $Ref "OptiScaler/menu/menu_common.cpp"
     Apply-MenuDiscreteChoices $metadata.Reads $menuSource
 
-    $section = $null; $entries = [System.Collections.Generic.List[object]]::new(); $order = 0
+    $section = $null; $comments = [System.Collections.Generic.List[string]]::new(); $entries = [System.Collections.Generic.List[object]]::new(); $order = 0
     foreach ($line in $ini -split "`r?`n") {
-        if ($line -match '^\[(.+)\]$') { $section = $matches[1]; continue }
+        if ($line -match '^\[(.+)\]$') { $section = $matches[1]; $comments.Clear(); continue }
+        if ($line -match '^\s*;\s?(?<comment>.*)$') { $comments.Add($matches['comment']) | Out-Null; continue }
         if ($section -and $line -match '^([^;#\s][^=]*)=(.*)$') {
             $key = $matches[1].Trim(); $default = $matches[2]; $id = "$section`0$key"
+            $sourceComment = (($comments | Where-Object { $_ -and $_ -notmatch '^-{3,}\s*$' }) -join "`n").Trim()
+            $comments.Clear()
             if (-not $metadata.Known.Contains($id)) { continue }
             $source = $metadata.Reads[$id]
             $kind = if ($null -eq $source) { 'String' } else { $source.Kind }
@@ -166,7 +169,7 @@ function Get-Entries([string] $Ref) {
                 '^String$' { if ($options.Count -gt 0) { 'Enum' } else { 'String' }; break }
                 default { 'String'; break }
             }
-            $entries.Add([pscustomobject]@{ Section = $section; Key = $key; Default = $default; Type = $type; Order = $order++; Minimum = if ($null -eq $source) { $null } else { $source.Minimum }; Maximum = if ($null -eq $source) { $null } else { $source.Maximum }; Options = $options })
+            $entries.Add([pscustomobject]@{ Section = $section; Key = $key; Default = $default; SourceComment = $sourceComment; Type = $type; Order = $order++; Minimum = if ($null -eq $source) { $null } else { $source.Minimum }; Maximum = if ($null -eq $source) { $null } else { $source.Maximum }; Options = $options })
         }
     }
     return $entries
@@ -177,7 +180,7 @@ function Render-Entries($Entries) {
         $options = if ($_.Options.Count -eq 0) { '[]' } else { '[' + (($_.Options | ForEach-Object { "new(`"$(Escape-CSharp $_.Value)`", `"$(Escape-CSharp $_.Label)`")" }) -join ', ') + ']' }
         $minimum = Format-CSharpNumber $_.Minimum
         $maximum = Format-CSharpNumber $_.Maximum
-        "        new(`"$(Escape-CSharp $_.Section).$(Escape-CSharp $_.Key)`", new IniKey(`"$(Escape-CSharp $_.Section)`", `"$(Escape-CSharp $_.Key)`"), `"$(Escape-CSharp $_.Key)`", string.Empty, `"$(Escape-CSharp $_.Section)`", $($_.Order), SettingValueKind.$($_.Type), true, $options, `"$(Escape-CSharp $_.Default)`", $minimum, $maximum),"
+        "        new(`"$(Escape-CSharp $_.Section).$(Escape-CSharp $_.Key)`", new IniKey(`"$(Escape-CSharp $_.Section)`", `"$(Escape-CSharp $_.Key)`"), `"$(Escape-CSharp $_.Key)`", string.Empty, `"$(Escape-CSharp $_.Section)`", $($_.Order), SettingValueKind.$($_.Type), true, $options, `"$(Escape-CSharp $_.Default)`", $minimum, $maximum, SourceComment: `"$(Escape-CSharp $_.SourceComment)`"),"
     }) -join "`n")
 }
 

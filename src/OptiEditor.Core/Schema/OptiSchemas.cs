@@ -8,9 +8,10 @@ namespace OptiEditor.Core.Schema;
 public enum SettingValueKind { Boolean, Integer, Double, Enum, String, Shortcut }
 public enum SettingAvailability { ExistingKeyOnly }
 public enum EditorVisibility { Visible, Hidden }
+public enum SettingInputKind { Text, Stepper }
 public sealed record SettingOption(string Value, string Label);
 public sealed record SettingGroupDefinition(string Id, string DisplayName, int Order);
-public sealed record SettingDefinition(string Id, IniKey IniKey, string DisplayName, string Description, string GroupId, int Order, SettingValueKind ValueKind, bool SupportsAuto, IReadOnlyList<SettingOption> Options, string DefaultRawValue = "auto", double? Minimum = null, double? Maximum = null, bool IsAdvanced = false, SettingAvailability Availability = SettingAvailability.ExistingKeyOnly, EditorVisibility DefaultEditorVisibility = EditorVisibility.Visible);
+public sealed record SettingDefinition(string Id, IniKey IniKey, string DisplayName, string Description, string GroupId, int Order, SettingValueKind ValueKind, bool SupportsAuto, IReadOnlyList<SettingOption> Options, string DefaultRawValue = "auto", double? Minimum = null, double? Maximum = null, bool IsAdvanced = false, SettingAvailability Availability = SettingAvailability.ExistingKeyOnly, EditorVisibility DefaultEditorVisibility = EditorVisibility.Visible, SettingInputKind InputKind = SettingInputKind.Text, double? Step = null, string SourceComment = "");
 public sealed record SettingValidationResult(bool IsValid, string? Error) { public static SettingValidationResult Valid { get; } = new(true, null); }
 public sealed class UnsupportedOptiSchemaException(OptiSchemaFamily family) : InvalidOperationException($"OptiScaler schema family '{family}' is not supported.");
 public interface IOptiSchemaProvider { OptiSchemaFamily Family { get; } IReadOnlyList<SettingGroupDefinition> Groups { get; } IReadOnlyList<SettingDefinition> Settings { get; } SettingDefinition? FindById(string id); }
@@ -20,7 +21,7 @@ public abstract class OptiSchemaProviderBase : IOptiSchemaProvider
     protected OptiSchemaProviderBase(OptiSchemaFamily family)
     {
         Family = family;
-        Settings = GeneratedOptiScalerSchemaCatalog.Create(family);
+        Settings = OptiSchemaOverlays.Apply(family, GeneratedOptiScalerSchemaCatalog.Create(family));
         Groups = Settings.Select(x => x.GroupId).Distinct(StringComparer.OrdinalIgnoreCase).Select((id, order) => new SettingGroupDefinition(id, id, order)).ToArray();
     }
 

@@ -8,6 +8,7 @@ using OptiEditor.Core.Models;
 namespace OptiEditor.App.Views;
 public sealed partial class EditorPage : Page
 {
+    private bool _showSourceComments;
     public EditorViewModel ViewModel { get; } = new();
     public EditorPage() => InitializeComponent();
     protected override async void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
@@ -15,10 +16,10 @@ public sealed partial class EditorPage : Page
         base.OnNavigatedTo(e);
         if (e.Parameter is EditorNavigationRequest request)
         {
-            await ViewModel.LoadAsync(request.Installation); RenderSettings();
+            _showSourceComments = await Services.AppServices.SourceComments.LoadAsync(); await ViewModel.LoadAsync(request.Installation); RenderSettings();
             if (request.Preset is not null) await ReviewPresetAsync(request.Preset);
         }
-        else if (e.Parameter is OptiInstallation installation) { await ViewModel.LoadAsync(installation); RenderSettings(); }
+        else if (e.Parameter is OptiInstallation installation) { _showSourceComments = await Services.AppServices.SourceComments.LoadAsync(); await ViewModel.LoadAsync(installation); RenderSettings(); }
     }
     private async void Save_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) => await ViewModel.SaveAsync();
     private void RevertAll_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { ViewModel.RevertAll(); RenderSettings(); }
@@ -28,14 +29,18 @@ public sealed partial class EditorPage : Page
     private void RenderSettings()
     {
         SettingsPanel.Children.Clear();
-        foreach (var item in ViewModel.Settings)
+        foreach (var group in ViewModel.Settings.GroupBy(x => x.GroupName))
         {
-            if (item.GroupDisplayName is not null) SettingsPanel.Children.Add(new TextBlock { Text = item.GroupDisplayName, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], Margin = new Thickness(0, 16, 0, 4) });
-            var grid = new Grid { ColumnSpacing = 12 }; grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) }); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var label = new StackPanel { Spacing = 3 }; label.Children.Add(new TextBlock { Text = item.DisplayName, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] }); if (!string.IsNullOrWhiteSpace(item.Description)) label.Children.Add(new TextBlock { Text = item.Description, TextWrapping = TextWrapping.Wrap }); var warning = new TextBlock(); warning.SetBinding(TextBlock.TextProperty, new Binding { Source = item, Path = new PropertyPath(nameof(EditorSettingItemViewModel.UnknownValueWarningMessage)), Mode = BindingMode.OneWay }); label.Children.Add(warning); grid.Children.Add(label);
-            SettingControlBase input = item.Binding.Definition.ValueKind switch { OptiEditor.Core.Schema.SettingValueKind.Boolean => new AutoBooleanSettingControl(item, ViewModel.Update), OptiEditor.Core.Schema.SettingValueKind.Enum => new EnumSettingControl(item, ViewModel.Update), OptiEditor.Core.Schema.SettingValueKind.Shortcut => new ShortcutSettingControl(item, ViewModel.Update), _ => new AutoNumberSettingControl(item, ViewModel.Update) };
-            Grid.SetColumn(input, 1); grid.Children.Add(input); var actions = new StackPanel { Spacing = 4 }; actions.Children.Add(new Button { Content = "Revert", Tag = item }); var validation = new TextBlock { Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.IndianRed), TextWrapping = TextWrapping.Wrap, MaxWidth = 180 }; validation.SetBinding(TextBlock.TextProperty, new Binding { Source = item, Path = new PropertyPath(nameof(EditorSettingItemViewModel.BlockingValidationMessage)), Mode = BindingMode.OneWay }); actions.Children.Add(validation); Grid.SetColumn(actions, 2); grid.Children.Add(actions);
-            ((Button)actions.Children[0]).Click += Revert_Click; SettingsPanel.Children.Add(new Border { Padding = new Thickness(12), BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"], BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Child = grid });
+            var rows = new StackPanel { Spacing = 8 };
+            foreach (var item in group)
+            {
+                var grid = new Grid { ColumnSpacing = 12 }; grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) }); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var label = new StackPanel { Spacing = 3 }; label.Children.Add(new TextBlock { Text = item.DisplayName, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] }); if (!string.IsNullOrWhiteSpace(item.Description)) label.Children.Add(new TextBlock { Text = item.Description, TextWrapping = TextWrapping.Wrap }); if (_showSourceComments && !string.IsNullOrWhiteSpace(item.Binding.Definition.SourceComment)) label.Children.Add(new TextBlock { Text = item.Binding.Definition.SourceComment, TextWrapping = TextWrapping.Wrap, Opacity = .7 }); var warning = new TextBlock(); warning.SetBinding(TextBlock.TextProperty, new Binding { Source = item, Path = new PropertyPath(nameof(EditorSettingItemViewModel.UnknownValueWarningMessage)), Mode = BindingMode.OneWay }); label.Children.Add(warning); grid.Children.Add(label);
+                SettingControlBase input = item.Binding.Definition.InputKind == OptiEditor.Core.Schema.SettingInputKind.Stepper ? new AutoStepperSettingControl(item, ViewModel.Update) : item.Binding.Definition.ValueKind switch { OptiEditor.Core.Schema.SettingValueKind.Boolean => new AutoBooleanSettingControl(item, ViewModel.Update), OptiEditor.Core.Schema.SettingValueKind.Enum => new EnumSettingControl(item, ViewModel.Update), OptiEditor.Core.Schema.SettingValueKind.Shortcut => new ShortcutSettingControl(item, ViewModel.Update), _ => new AutoNumberSettingControl(item, ViewModel.Update) };
+                Grid.SetColumn(input, 1); grid.Children.Add(input); var actions = new StackPanel { Spacing = 4 }; actions.Children.Add(new Button { Content = "Revert", Tag = item }); var validation = new TextBlock { Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.IndianRed), TextWrapping = TextWrapping.Wrap, MaxWidth = 180 }; validation.SetBinding(TextBlock.TextProperty, new Binding { Source = item, Path = new PropertyPath(nameof(EditorSettingItemViewModel.BlockingValidationMessage)), Mode = BindingMode.OneWay }); actions.Children.Add(validation); Grid.SetColumn(actions, 2); grid.Children.Add(actions);
+                ((Button)actions.Children[0]).Click += Revert_Click; rows.Children.Add(grid);
+            }
+            SettingsPanel.Children.Add(new CollapsibleSectionCard(group.First().GroupDisplayName ?? group.Key, rows));
         }
     }
     private async Task ReviewPresetAsync(OptiEditor.Core.Presets.PresetDefinition preset)

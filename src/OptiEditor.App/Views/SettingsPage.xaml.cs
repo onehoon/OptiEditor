@@ -21,7 +21,28 @@ public sealed partial class SettingsPage : Page
     private void BuildCategories()
     {
         AddStartupTabCard();
+        AddSourceCommentsCard();
         AddEditorVisibilityCard();
+    }
+
+    private void AddSourceCommentsCard()
+    {
+        var icon = new SymbolIcon(Symbol.Comment) { VerticalAlignment = VerticalAlignment.Center };
+        var text = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(new TextBlock { Text = "Source INI comments", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"] });
+        text.Children.Add(new TextBlock { Text = "Show original OptiScaler INI comments in Editor and preset editing", Opacity = .7, TextWrapping = TextWrapping.Wrap });
+        var toggle = new ToggleSwitch { OnContent = null, OffContent = null, HorizontalAlignment = HorizontalAlignment.Right, Tag = true };
+        toggle.Toggled += async (_, _) => { if (toggle.Tag is not true) await Services.AppServices.SourceComments.SaveAsync(toggle.IsOn); };
+        var content = CreateCardContent(icon, text, toggle);
+        SettingsCategories.Children.Add(new Border { Child = content, Padding = new Thickness(18, 16, 18, 16), BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"], BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) });
+        _ = LoadSourceCommentsAsync(toggle);
+    }
+
+    private static async Task LoadSourceCommentsAsync(ToggleSwitch toggle)
+    {
+        toggle.Tag = true;
+        toggle.IsOn = await Services.AppServices.SourceComments.LoadAsync();
+        toggle.Tag = false;
     }
 
     private void AddStartupTabCard()
@@ -132,7 +153,7 @@ public sealed partial class SettingsPage : Page
             if (index % 2 == 0) SettingsPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var item = ViewModel.Sections[index];
             var title = new TextBlock { Text = item.Section, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], VerticalAlignment = VerticalAlignment.Center };
-            var toggle = new ToggleSwitch { IsOn = item.IsVisible, Tag = item, OnContent = "Shown", OffContent = "Hidden", HorizontalAlignment = HorizontalAlignment.Right };
+            var toggle = new ToggleSwitch { IsOn = item.IsVisible, Tag = item, OnContent = null, OffContent = null, HorizontalAlignment = HorizontalAlignment.Right };
             toggle.Toggled += (_, _) => { if (toggle.Tag is EditorVisibilitySectionItemViewModel current) { current.IsVisible = toggle.IsOn; current.IsOverridden = current.IsVisible != current.DefaultVisible; } };
             var content = CreateCardContent(new SymbolIcon(Symbol.Bullets) { VerticalAlignment = VerticalAlignment.Center }, title, toggle);
             var card = new Border { Child = content, Padding = new Thickness(14, 12, 14, 12), BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"], BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) };

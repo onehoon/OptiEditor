@@ -17,6 +17,53 @@ public abstract class SettingControlBase : StackPanel
     protected void SetValue(string value) { if (Item.CurrentRawValue == value) return; Item.CurrentRawValue = value; Changed(Item); }
 }
 
+public sealed class CollapsibleSectionCard : Grid
+{
+    private readonly StackPanel _body;
+    private readonly TextBlock _chevron;
+
+    public CollapsibleSectionCard(string title, UIElement content, bool isExpanded = false)
+    {
+        HorizontalAlignment = HorizontalAlignment.Stretch;
+        var root = new StackPanel();
+        var header = new Button { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(14, 12, 14, 12) };
+        var headerContent = new Grid { ColumnSpacing = 12 };
+        headerContent.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerContent.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerContent.Children.Add(new SymbolIcon(Symbol.Bullets) { VerticalAlignment = VerticalAlignment.Center });
+        var titleText = new TextBlock { Text = title, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(titleText, 1); headerContent.Children.Add(titleText);
+        _chevron = new TextBlock { Text = "›", FontSize = 20, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(_chevron, 2); headerContent.Children.Add(_chevron);
+        header.Content = headerContent;
+        header.Click += (_, _) => IsExpanded = !IsExpanded;
+        root.Children.Add(header);
+
+        _body = new StackPanel { Spacing = 8, Padding = new Thickness(14, 0, 14, 14), Visibility = Visibility.Collapsed };
+        _body.Children.Add(content);
+        root.Children.Add(_body);
+        Children.Add(new Border
+        {
+            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Child = root
+        });
+        IsExpanded = isExpanded;
+    }
+
+    public bool IsExpanded
+    {
+        get => _body.Visibility == Visibility.Visible;
+        set
+        {
+            _body.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+            _chevron.Text = value ? "⌄" : "›";
+        }
+    }
+}
+
 public sealed class AutoBooleanSettingControl : SettingControlBase
 {
     public AutoBooleanSettingControl(EditorSettingItemViewModel item, Action<EditorSettingItemViewModel> changed) : base(item, changed)
@@ -50,6 +97,37 @@ public sealed class AutoNumberSettingControl : SettingControlBase
     {
         var box = new TextBox { Text = item.CurrentRawValue, PlaceholderText = item.InputHint, MinWidth = 220 };
         box.TextChanged += (_, _) => SetValue(box.Text); Children.Add(box);
+    }
+}
+
+public sealed class AutoStepperSettingControl : SettingControlBase
+{
+    public AutoStepperSettingControl(EditorSettingItemViewModel item, Action<EditorSettingItemViewModel> changed) : base(item, changed)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var auto = new Button { Content = "Auto" };
+        auto.Click += (_, _) => SetValue("auto");
+        row.Children.Add(auto);
+        var definition = item.Binding.Definition;
+        var number = new NumberBox
+        {
+            Minimum = definition.Minimum ?? double.MinValue,
+            Maximum = definition.Maximum ?? double.MaxValue,
+            SmallChange = definition.Step ?? 1,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline,
+            MinWidth = 180,
+            Value = double.TryParse(item.CurrentRawValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var current) ? current : definition.Minimum ?? 0
+        };
+        number.ValueChanged += (_, _) =>
+        {
+            if (double.IsNaN(number.Value)) return;
+            var value = definition.ValueKind == SettingValueKind.Integer
+                ? ((long)Math.Round(number.Value)).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : number.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            SetValue(value);
+        };
+        row.Children.Add(number);
+        Children.Add(row);
     }
 }
 
