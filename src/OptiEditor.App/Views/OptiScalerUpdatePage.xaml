@@ -3,15 +3,14 @@
     <DataTemplate x:Key="InstallationCardTemplate" x:DataType="vm:OptiScalerUpdateItemViewModel">
       <Border Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" HorizontalAlignment="Stretch">
         <Grid RowSpacing="4" HorizontalAlignment="Stretch">
-          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
           <Grid HorizontalAlignment="Stretch">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <TextBlock Text="{x:Bind Installation.GameDisplayName}" Style="{StaticResource SubtitleTextBlockStyle}"/>
+            <TextBlock Text="{x:Bind Installation.GameDisplayName}" Style="{StaticResource SubtitleTextBlockStyle}" MaxLines="1" TextTrimming="CharacterEllipsis"/>
             <CheckBox Grid.Column="1" Width="20" Height="20" MinWidth="0" MinHeight="0" Padding="0" IsChecked="{x:Bind IsSelected, Mode=TwoWay}" IsEnabled="{x:Bind IsSelectionEnabled, Mode=OneWay}" HorizontalAlignment="Right" VerticalAlignment="Top"/>
           </Grid>
-          <TextBlock Grid.Row="1" Text="{x:Bind Installation.GameExeName}"/>
-          <TextBlock Grid.Row="2"><Run Text="{x:Bind Installation.OptiBinaryFileName}"/><Run Text=" ("/><Run Text="{x:Bind Installation.FileVersion}"/><Run Text=")"/></TextBlock>
-          <TextBlock Grid.Row="3" Text="{x:Bind Installation.InstallDirectory}" TextWrapping="Wrap"/>
+          <TextBlock Grid.Row="1" Text="{x:Bind Installation.GameExeName}" MaxLines="1" TextTrimming="CharacterEllipsis"/>
+          <TextBlock Grid.Row="2" MaxLines="1" TextTrimming="CharacterEllipsis"><Run Text="{x:Bind Installation.OptiBinaryFileName}"/><Run Text=" ("/><Run Text="{x:Bind Installation.FileVersion}"/><Run Text=")"/></TextBlock>
         </Grid>
       </Border>
     </DataTemplate>
@@ -30,6 +29,12 @@
         <Grid Grid.Row="1" ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel Orientation="Horizontal" Spacing="16"><CheckBox Content="OptiScaler 0.9" IsChecked="{x:Bind ViewModel.IsV09Selected, Mode=TwoWay}"/><CheckBox Content="OptiScaler 0.10" IsChecked="{x:Bind ViewModel.IsV10Selected, Mode=TwoWay}"/><CheckBox Content="All" IsChecked="{x:Bind ViewModel.IsAllSelected, Mode=TwoWay}"/></StackPanel><TextBox Grid.Column="1" Width="280" Height="36" Padding="12,4,12,0" PlaceholderText="Search game" VerticalContentAlignment="Center" Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/></Grid>
       </Grid>
     </Border>
-    <ScrollViewer Grid.Row="3" HorizontalScrollMode="Disabled"><ItemsControl ItemsSource="{x:Bind ViewModel.UpdateRows, Mode=OneWay}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:OptiScalerUpdateRow"><Grid Margin="0,0,0,12" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><ContentPresenter Content="{x:Bind First}" ContentTemplate="{StaticResource InstallationCardTemplate}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/><ContentPresenter Grid.Column="1" Content="{x:Bind Second}" ContentTemplate="{StaticResource InstallationCardTemplate}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Visibility="{x:Bind HasSecond, Converter={StaticResource BooleanToVisibilityConverter}}"/></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
+    <ScrollViewer Grid.Row="3" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+      <ItemsRepeater ItemsSource="{x:Bind ViewModel.FilteredItems, Mode=OneWay}" ItemTemplate="{StaticResource InstallationCardTemplate}" HorizontalAlignment="Stretch">
+        <ItemsRepeater.Layout>
+          <UniformGridLayout Orientation="Horizontal" MinItemWidth="480" MinColumnSpacing="12" MinRowSpacing="12" ItemsStretch="Fill" ItemsJustification="Start"/>
+        </ItemsRepeater.Layout>
+      </ItemsRepeater>
+    </ScrollViewer>
   </Grid>
 </Page>
