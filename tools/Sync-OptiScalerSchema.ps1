@@ -19,6 +19,12 @@ function Get-OptionalUpstreamText([string] $Ref, [string] $Path) {
 }
 
 function Get-Commit([string] $Ref) {
+    # A caller (the schema-sync workflow, resolving once up front so its two
+    # regenerate-and-compare runs target one pinned commit instead of each
+    # independently re-resolving the live branch tip) may already pass a
+    # resolved 40-hex-char SHA here. refs/heads/<sha> never matches, so that
+    # would otherwise fail to resolve; short-circuit and use it as-is.
+    if ($Ref -match '^[0-9a-fA-F]{40}$') { return $Ref }
     $result = git ls-remote "https://github.com/$Repository.git" "refs/heads/$Ref"
     $exitCode = $LASTEXITCODE
     $match = $result | Select-Object -First 1

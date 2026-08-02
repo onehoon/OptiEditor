@@ -9,6 +9,11 @@ concurrency:
 jobs:
   release:
     runs-on: windows-latest
+    # workflow_dispatch lets any branch be picked from the Actions "Run
+    # workflow" dropdown; without this guard, running it against anything
+    # other than main would compute a version, publish a build of that
+    # branch's code, and cut a real GitHub Release from it.
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -35,6 +40,8 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Previous Velopack release download failed." }
           } else { Write-Host "No prior GitHub Release exists; the first release will contain only a full package." }
       - run: dotnet publish src/OptiEditor.App/OptiEditor.App.csproj -c Release -r win-x64 --self-contained true -o publish /p:Version=${{ steps.version.outputs.version }}
+      - shell: pwsh
+        run: if (!(Test-Path 'publish/OptiEditor.pri')) { throw 'WinUI PRI resource was not published.' }
       - run: dotnet vpk pack --packId OptiEditor --packVersion ${{ steps.version.outputs.version }} --packDir publish --mainExe OptiEditor.exe --packTitle OptiEditor --packAuthors onehoon --runtime win10.0.17763-x64
       - run: dotnet vpk upload github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ secrets.GITHUB_TOKEN }}" --publish --releaseName "OptiEditor ${{ steps.version.outputs.version }}" --tag "v${{ steps.version.outputs.version }}"
       - name: Prepend the game-closing caution to the release notes

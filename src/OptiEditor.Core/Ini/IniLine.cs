@@ -6,7 +6,12 @@ public abstract class IniLine(int originalLineNumber, string originalText, strin
 {
     public int OriginalLineNumber { get; } = originalLineNumber;
     public string OriginalText { get; } = originalText;
-    public string LineEnding { get; } = lineEnding;
+    // Settable internally only: a line that was the last line of a file with
+    // no trailing newline parses with LineEnding = "". If a new line is later
+    // inserted after it, that empty ending must be backfilled first, or the
+    // two lines render concatenated onto one physical line (see
+    // IniDocument.ApplyPatch).
+    public string LineEnding { get; internal set; } = lineEnding;
     public abstract IniLineKind Kind { get; }
     public abstract string Render();
     public abstract IniLine Clone();

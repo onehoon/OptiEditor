@@ -101,6 +101,12 @@ public sealed class SchemaTests
         Assert.Equal("Balanced", qualityRatio.DisplayName);
         Assert.True(SettingValidator.Validate(qualityRatio, "1.7").IsValid);
         Assert.True(SettingValidator.Validate(qualityRatio, "auto").IsValid);
+        // double.TryParse accepts these literal strings regardless of range
+        // bounds; NaN in particular compares false against both Minimum and
+        // Maximum, so a bare range check alone would not reject it.
+        Assert.False(SettingValidator.Validate(qualityRatio, "NaN").IsValid);
+        Assert.False(SettingValidator.Validate(qualityRatio, "Infinity").IsValid);
+        Assert.False(SettingValidator.Validate(qualityRatio, "-Infinity").IsValid);
 
         var fpsOverlay = schema.FindById("Menu.FpsOverlayType")!;
         Assert.Contains("FPS overlay type", fpsOverlay.SourceComment, StringComparison.OrdinalIgnoreCase);
@@ -110,6 +116,17 @@ public sealed class SchemaTests
         Assert.Equal(SettingValueKind.Enum, anisotropyChoices.ValueKind);
         Assert.Equal(["2", "4", "8", "16"], anisotropyChoices.Options.Select(x => x.Value));
         Assert.False(SettingValidator.Validate(anisotropyChoices, "6").IsValid);
+
+        // Upstream Config.cpp resets AllowedFrameAhead to auto outside 1-3;
+        // the schema generator's clamp-pattern matcher misses that shape, so
+        // this range is added by hand in OptiSchemaOverlays.
+        var allowedFrameAhead = schema.FindById("FrameGen.AllowedFrameAhead")!;
+        Assert.Equal(1, allowedFrameAhead.Minimum);
+        Assert.Equal(3, allowedFrameAhead.Maximum);
+        Assert.False(SettingValidator.Validate(allowedFrameAhead, "0").IsValid);
+        Assert.False(SettingValidator.Validate(allowedFrameAhead, "4").IsValid);
+        Assert.True(SettingValidator.Validate(allowedFrameAhead, "1").IsValid);
+        Assert.True(SettingValidator.Validate(allowedFrameAhead, "3").IsValid);
     }
 
     [Fact]

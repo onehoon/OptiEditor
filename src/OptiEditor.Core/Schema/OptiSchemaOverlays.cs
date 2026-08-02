@@ -55,6 +55,15 @@ internal static class OptiSchemaOverlays
                 InputKind = SettingInputKind.Stepper,
                 Step = 1
             },
+            // Upstream Config.cpp resets this to auto when it's outside 1-3
+            // (release/0.9 and master both: `if (value < 1 || value > 3)
+            // reset()`); the schema generator's clamp-pattern matcher doesn't
+            // recognize this has-value-then-reset shape, so the range needs
+            // to be added here instead. FOV/color settings mentioned
+            // alongside this in review are documented as ranges in the INI
+            // comments only -- upstream has no matching validation for them,
+            // so no bound was added for those.
+            "FrameGen.AllowedFrameAhead" => definition with { Minimum = 1, Maximum = 3 },
             "QualityOverrides.QualityRatioOverrideEnabled" => Text(definition, "Enables custom upscaling ratios for each quality mode."),
             "QualityOverrides.QualityRatioDLAA" => Text(definition, "DLAA ratio. Default Auto value: 1.0.", "DLAA"),
             "QualityOverrides.QualityRatioUltraQuality" => Text(definition, "Ultra Quality ratio. Default Auto value: 1.3.", "Ultra Quality"),

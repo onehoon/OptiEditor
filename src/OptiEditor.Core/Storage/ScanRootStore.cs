@@ -17,5 +17,5 @@ public sealed class ScanRootStore
         _logger = logger;
     }
     public async Task<IReadOnlyList<ScanRoot>> LoadAsync(CancellationToken cancellationToken = default) => await JsonFileStore.LoadAsync<List<ScanRoot>>(_filePath, [], _logger, cancellationToken);
-    public Task SaveAsync(IEnumerable<ScanRoot> roots, CancellationToken cancellationToken = default) => JsonFileStore.SaveAsync(_filePath, roots.ToArray(), Options, cancellationToken);
+    public Task SaveAsync(IEnumerable<ScanRoot> roots, CancellationToken cancellationToken = default) => JsonFileStore.SaveAsync(_filePath, roots.ToArray(), Options, _logger, cancellationToken);
 }

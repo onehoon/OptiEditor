@@ -23,6 +23,30 @@ public sealed class IniDocumentTests
     }
 
     [Fact]
+    public void Insert_after_a_file_with_no_trailing_newline_keeps_keys_on_separate_lines()
+    {
+        // The last physical line of a file with no trailing newline parses
+        // with LineEnding = "". Inserting a new key right after it must not
+        // concatenate the two keys onto the same rendered line.
+        const string source = "[Section]\r\nExisting=1";
+        var doc = IniParser.Parse(source, new UTF8Encoding(false), false);
+        var result = doc.ApplyPatch(new(new("Section", "NewKey"), "2"));
+        Assert.True(result.WasInserted);
+        var rendered = doc.RenderText();
+        Assert.Equal("[Section]\r\nExisting=1\r\nNewKey=2\r\n", rendered);
+    }
+
+    [Fact]
+    public void Insert_into_an_empty_section_with_no_trailing_newline_keeps_header_and_key_separate()
+    {
+        const string source = "[Section]";
+        var doc = IniParser.Parse(source, new UTF8Encoding(false), false);
+        var result = doc.ApplyPatch(new(new("Section", "NewKey"), "2"));
+        Assert.True(result.WasInserted);
+        Assert.Equal("[Section]\r\nNewKey=2\r\n", doc.RenderText());
+    }
+
+    [Fact]
     public void Revert_restores_original_bytes_and_auto_is_a_distinct_value()
     {
         const string source = "[Test]\n  Key   =   auto   \n"; var doc = IniParser.Parse(source, new UTF8Encoding(false), false);

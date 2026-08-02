@@ -60,7 +60,11 @@ public sealed class IniFileService(IIniBackupService? backups = null, IAtomicFil
         catch (IniFileChangedExternallyException ex) { return new(false, null, null, [], ex.Message); }
         catch (OperationCanceledException) { return new(false, null, null, [], "Save was cancelled."); }
         catch (Exception) { return new(false, null, null, [], "The INI file could not be saved safely."); }
-        finally { if (temporary is not null && File.Exists(temporary)) File.Delete(temporary); gate.Release(); }
+        finally
+        {
+            if (temporary is not null) try { if (File.Exists(temporary)) File.Delete(temporary); } catch { /* best-effort cleanup; must not skip releasing the gate below */ }
+            gate.Release();
+        }
     }
     internal static async Task<IniFileSnapshot> CaptureSnapshotAsync(string path, byte[]? content, CancellationToken cancellationToken)
     {

@@ -37,7 +37,7 @@ internal static class JsonFileStore
         finally { gate.Release(); }
     }
 
-    public static async Task SaveAsync<T>(string path, T value, JsonSerializerOptions? options, CancellationToken cancellationToken = default)
+    public static async Task SaveAsync<T>(string path, T value, JsonSerializerOptions? options, IDiagnosticLogger? logger = null, CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var gate = Locks.GetOrAdd(path, _ => new SemaphoreSlim(1, 1));
@@ -48,7 +48,15 @@ internal static class JsonFileStore
             await using (var stream = File.Create(temporary)) await JsonSerializer.SerializeAsync(stream, value, options, cancellationToken);
             File.Move(temporary, path, true);
         }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); gate.Release(); }
+        finally
+        {
+            // A cleanup failure (locked by an indexer/AV scan, permissions...)
+            // must never skip releasing the gate below it, or every later save
+            // to this same path hangs forever waiting on it.
+            try { if (File.Exists(temporary)) File.Delete(temporary); }
+            catch (Exception ex) { logger?.Error($"Temporary file cleanup failed for {Path.GetFileName(path)}.", ex); }
+            finally { gate.Release(); }
+        }
     }
 
     private static void MoveAside(string path, Exception ex, IDiagnosticLogger? logger)

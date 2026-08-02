@@ -41,6 +41,13 @@ public sealed class IniDocument : IIniDocumentReader
         var sectionIndex = _lines.FindLastIndex(x => x is IniSectionLine section && string.Equals(section.SectionName, patch.Key.Section, StringComparison.OrdinalIgnoreCase));
         if (sectionIndex < 0) return Fail(patch, "The target section does not exist.");
         var insertAt = sectionIndex + 1; while (insertAt < _lines.Count && _lines[insertAt] is not IniSectionLine) insertAt++;
+        // The line directly before the insertion point can be the file's last
+        // physical line, which parses with an empty LineEnding when the file
+        // has no trailing newline. RenderText concatenates each line's text
+        // directly onto its own ending, so inserting after it without first
+        // giving it a real ending would glue the new key onto the same line.
+        var previousLine = _lines[insertAt - 1];
+        if (previousLine.LineEnding.Length == 0) previousLine.LineEnding = DominantLineEnding;
         _lines.Insert(insertAt, new IniKeyValueLine(0, "", DominantLineEnding, patch.Key.Section, patch.Key.Name, patch.Key.Name + "=", patch.NewValue, "", true));
         return new(patch.Key, true, true, false, null, patch.NewValue, null, null);
     }
