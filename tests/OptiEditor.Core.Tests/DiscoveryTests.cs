@@ -24,6 +24,44 @@ public sealed class DiscoveryTests
     [InlineData(0, 9, OptiSchemaFamily.V09)][InlineData(0, 10, OptiSchemaFamily.V10)][InlineData(0, 8, OptiSchemaFamily.Unsupported)][InlineData(0, 11, OptiSchemaFamily.Unsupported)][InlineData(1, 0, OptiSchemaFamily.Unsupported)]
     public void Version_family_is_detected_from_numeric_parts(int major, int minor, OptiSchemaFamily expected) => Assert.Equal(expected, OptiBinaryRules.DetectFamily(VersionData(major, minor)));
 
+    [Theory]
+    [InlineData(0, 9, OptiSchemaFamily.V09)][InlineData(0, 10, OptiSchemaFamily.V10)][InlineData(0, 8, OptiSchemaFamily.Unsupported)][InlineData(1, 0, OptiSchemaFamily.Unsupported)]
+    public void Version_family_is_detected_from_a_plain_Version(int major, int minor, OptiSchemaFamily expected) => Assert.Equal(expected, OptiBinaryRules.DetectFamily(new Version(major, minor)));
+
+    [Fact]
+    public void FindProxyBinaries_only_returns_files_identified_as_OptiScaler()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(temp);
+        try
+        {
+            var opti = Path.Combine(temp, "dxgi.dll"); File.WriteAllBytes(opti, [1]);
+            var alsoOpti = Path.Combine(temp, "winmm.dll"); File.WriteAllBytes(alsoOpti, [2]);
+            var notOpti = Path.Combine(temp, "version.dll"); File.WriteAllBytes(notOpti, [3]);
+            var versions = new Dictionary<string, FileVersionData>(StringComparer.OrdinalIgnoreCase)
+            {
+                [opti] = VersionData(),
+                [alsoOpti] = VersionData(),
+                [notOpti] = VersionData() with { ProductName = "Unrelated Product", InternalName = null, OriginalFilename = null, FileDescription = null },
+            };
+            Assert.Equal(["dxgi.dll", "winmm.dll"], OptiBinaryRules.FindProxyBinaries(temp, new FakeVersions(versions)));
+        }
+        finally { Directory.Delete(temp, true); }
+    }
+
+    [Fact]
+    public void FindProxyBinaries_only_looks_at_the_top_level_directory()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(temp);
+        try
+        {
+            var nested = Directory.CreateDirectory(Path.Combine(temp, "nested")).FullName;
+            var nestedOpti = Path.Combine(nested, "dxgi.dll"); File.WriteAllBytes(nestedOpti, [1]);
+            var versions = new Dictionary<string, FileVersionData>(StringComparer.OrdinalIgnoreCase) { [nestedOpti] = VersionData() };
+            Assert.Empty(OptiBinaryRules.FindProxyBinaries(temp, new FakeVersions(versions)));
+        }
+        finally { Directory.Delete(temp, true); }
+    }
+
     [Fact]
     public void Game_exe_prefers_product_name_then_size_then_filename()
     {

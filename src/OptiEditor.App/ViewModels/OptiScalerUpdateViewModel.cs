@@ -64,25 +64,83 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     partial void OnSourceErrorChanged(string? value) => OnPropertyChanged(nameof(HasSourceError));
     partial void OnStatusTextChanged(string value) => OnPropertyChanged(nameof(HasStatusText));
 
-    public async Task<IReadOnlyList<OptiScalerReplacementResult>> ReplaceAsync(CancellationToken cancellationToken = default)
+    // Split from the previous single ReplaceAsync so the caller (the page) can
+    // interject a version-family confirmation and/or a multiple-proxy-DLL
+    // notice between preparation and execution. IsBusy is set here and stays
+    // set across both the dialog(s) shown in between and ExecuteReplacementAsync
+    // itself; either AbortPreparedReplacement or ExecuteReplacementAsync must be
+    // called afterward to release it and the cancellation source.
+    public async Task<OptiScalerUpdatePreparation?> PrepareReplacementAsync(CancellationToken cancellationToken = default)
     {
-        if (!CanReplace || Source is null) return [];
+        if (!CanReplace || Source is null) return null;
         IsBusy = true; _operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
             StatusText = "Preparing replacement...";
-            var plan = await BuildPlanAsync(_operationCancellation.Token);
-            if (plan.Targets.Count == 0) { Results = plan.SkippedTargets; StatusText = "No selected installations remain valid."; return Results; }
+            // ApplyBulkSelection already applies the 0.9/0.10/All filter to
+            // IsSelected, so reading it back here (rather than re-deriving the
+            // target set from the full catalog in bulk mode) is what keeps a
+            // version-only bulk selection from also sweeping in installations
+            // the user never selected.
+            var requested = Items.Where(x => x.IsSelected).Select(x => x.DirectoryIdentity)
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+            // Check every requested folder for multiple identified OptiScaler
+            // proxy DLLs directly, before rescanning. The installation scanner
+            // treats differing proxy versions in the same folder as a conflict
+            // and excludes the installation entirely, which would otherwise
+            // hide a multi-DLL folder behind a generic "no longer valid"
+            // result instead of the specific manual-cleanup guidance.
+            var displayNameByDirectory = AppServices.Installations.Installations.ToDictionary(x => x.InstallDirectory, x => x.GameDisplayName, StringComparer.OrdinalIgnoreCase);
+            var multiProxyTargets = new List<OptiScalerReplacementResult>();
+            var singleProxyDirectories = new List<string>();
+            foreach (var directory in requested)
+            {
+                _operationCancellation.Token.ThrowIfCancellationRequested();
+                var detected = AppServices.OptiScalerReplacement.DetectProxyBinaries(directory);
+                if (detected.Count > 1)
+                {
+                    var names = string.Join(", ", detected);
+                    multiProxyTargets.Add(new(directory, displayNameByDirectory.GetValueOrDefault(directory), names, null, null, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.MultipleOptiScalerBinaries, $"Multiple OptiScaler DLLs were detected: {names}. Remove the unnecessary DLLs manually and scan again.", DetectedBinaryNames: detected));
+                }
+                else singleProxyDirectories.Add(directory);
+            }
+
+            var plan = await BuildPlanAsync(singleProxyDirectories, displayNameByDirectory, _operationCancellation.Token);
+            var classification = await AppServices.OptiScalerReplacement.ClassifyTargetsAsync(Source, plan.Targets.Select(x => x.Installation).ToArray(), _operationCancellation.Token);
+            var finalPlan = new OptiScalerReplacementPlan(Source, classification.ReadyTargets, [.. plan.SkippedTargets, .. classification.MultiProxyTargets, .. multiProxyTargets]);
+            return new(finalPlan, [.. multiProxyTargets, .. classification.MultiProxyTargets], classification.FamilyMismatchTargets);
+        }
+        catch (OperationCanceledException) { StatusText = "Replacement canceled."; AbortPreparedReplacement(); return null; }
+        catch (Exception ex) { AppServices.Logger.Error("OptiScaler replacement preparation failed.", ex); SourceError = ex.Message; StatusText = "Replacement could not start."; AbortPreparedReplacement(); return null; }
+    }
+
+    // The user declined a warning (or the page navigated away) after a
+    // successful PrepareReplacementAsync: release what it left open without
+    // replacing anything.
+    public void AbortPreparedReplacement(string? statusText = null)
+    {
+        _operationCancellation?.Dispose(); _operationCancellation = null;
+        IsBusy = false;
+        if (statusText is not null) StatusText = statusText;
+        OnPropertiesChanged();
+    }
+
+    public async Task<IReadOnlyList<OptiScalerReplacementResult>> ExecuteReplacementAsync(OptiScalerReplacementPlan plan)
+    {
+        try
+        {
+            if (plan.Targets.Count == 0) { Results = plan.SkippedTargets; StatusText = DescribeOutcome(Results); return Results; }
             ProgressTotal = plan.Targets.Count; ProgressCurrent = 0;
             var progress = new Progress<OptiScalerReplacementProgress>(p => { ProgressCurrent = p.Completed; ProgressTotal = p.Total; StatusText = $"Replacing OptiScaler binaries... {p.Completed} of {p.Total}"; });
-            Results = await AppServices.OptiScalerReplacement.ReplaceAsync(plan, progress, _operationCancellation.Token);
+            Results = await AppServices.OptiScalerReplacement.ReplaceAsync(plan, progress, _operationCancellation?.Token ?? CancellationToken.None);
             var refreshDirectories = Results.Where(x => x.Status is OptiScalerReplacementStatus.Replaced or OptiScalerReplacementStatus.Failed).Select(x => x.InstallDirectory).Distinct(StringComparer.OrdinalIgnoreCase);
             await AppServices.Installations.RescanDirectoriesAsync(refreshDirectories, CancellationToken.None);
             StatusText = DescribeOutcome(Results);
             return Results;
         }
         catch (OperationCanceledException) { StatusText = "Replacement canceled."; return Results; }
-        catch (Exception ex) { AppServices.Logger.Error("OptiScaler replacement preparation failed.", ex); SourceError = ex.Message; StatusText = "Replacement could not start."; return Results; }
+        catch (Exception ex) { AppServices.Logger.Error("OptiScaler replacement failed.", ex); SourceError = ex.Message; StatusText = "Replacement could not start."; return Results; }
         finally { _operationCancellation?.Dispose(); _operationCancellation = null; IsBusy = false; OnPropertiesChanged(); }
     }
 
@@ -116,21 +174,44 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
         {
             ReplacementOutcome.Completed => $"Replacement completed. {replaced} of {results.Count} installation(s) were replaced.",
             ReplacementOutcome.Canceled => "Replacement was canceled. No installations were replaced.",
-            ReplacementOutcome.Skipped => $"No installations were replaced. All {results.Count} selected installation(s) were skipped (busy or no longer valid).",
+            ReplacementOutcome.Skipped => results.All(x => x.Reason == OptiScalerReplacementReason.MultipleOptiScalerBinaries)
+                ? "No installations were replaced. All selected installations require manual DLL cleanup."
+                : $"No installations were replaced. All {results.Count} selected installation(s) were skipped (busy or no longer valid).",
             ReplacementOutcome.Failed => $"Replacement failed. 0 of {results.Count} installation(s) were replaced.",
             _ => $"Replacement partially completed. {replaced} of {results.Count} installation(s) were replaced.",
         };
     }
 
-    private async Task<OptiScalerReplacementPlan> BuildPlanAsync(CancellationToken token)
+    private async Task<OptiScalerReplacementPlan> BuildPlanAsync(IReadOnlyList<string> requested, IReadOnlyDictionary<string, string> displayNameByDirectory, CancellationToken token)
     {
-        var selectedDirectories = IsBulkMode ? AppServices.Installations.Installations.Select(x => x.InstallDirectory) : Items.Where(x => x.IsSelected).Select(x => x.DirectoryIdentity);
-        var requested = selectedDirectories.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var refreshed = await AppServices.Installations.RescanDirectoriesAsync(requested, token);
         var valid = refreshed.Where(x => IsAllSelected || (IsV09Selected && x.SchemaFamily == OptiSchemaFamily.V09) || (IsV10Selected && x.SchemaFamily == OptiSchemaFamily.V10) || !IsBulkMode).ToArray();
-        var missing = requested.Where(directory => !refreshed.Any(x => string.Equals(x.InstallDirectory, directory, StringComparison.OrdinalIgnoreCase)))
-            .Select(directory => new OptiScalerReplacementResult(directory, null, "Unknown", null, null, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.TargetMissing, "The installation is no longer valid."));
-        return new(Source!, valid.Select(x => new OptiScalerReplacementTarget(x)).ToArray(), missing.ToArray());
+        var refreshedDirectories = refreshed.Select(x => x.InstallDirectory).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var skipped = new List<OptiScalerReplacementResult>();
+        foreach (var directory in requested)
+        {
+            if (refreshedDirectories.Contains(directory)) continue;
+            token.ThrowIfCancellationRequested();
+            // A directory that vanished from the rescan wasn't necessarily
+            // removed: the scanner also excludes an installation outright when
+            // its proxy DLLs report conflicting versions, which can happen if a
+            // second OptiScaler DLL landed here in the brief window between the
+            // pre-rescan multi-DLL check and this rescan. Re-check rather than
+            // reporting the generic "no longer valid" for what is actually a
+            // multi-DLL folder.
+            var detected = AppServices.OptiScalerReplacement.DetectProxyBinaries(directory);
+            if (detected.Count > 1)
+            {
+                var names = string.Join(", ", detected);
+                skipped.Add(new(directory, displayNameByDirectory.GetValueOrDefault(directory), names, null, null, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.MultipleOptiScalerBinaries, $"Multiple OptiScaler DLLs were detected: {names}. Remove the unnecessary DLLs manually and scan again.", DetectedBinaryNames: detected));
+            }
+            else
+            {
+                skipped.Add(new(directory, displayNameByDirectory.GetValueOrDefault(directory), "Unknown", null, null, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.TargetMissing, "The installation is no longer valid."));
+            }
+        }
+        return new(Source!, valid.Select(x => new OptiScalerReplacementTarget(x)).ToArray(), skipped.ToArray());
     }
 
     partial void OnIsAllSelectedChanged(bool value)
@@ -197,3 +278,8 @@ public sealed record OptiScalerUpdateRow(OptiScalerUpdateItemViewModel First, Op
 {
     public bool HasSecond => Second is not null;
 }
+
+public sealed record OptiScalerUpdatePreparation(
+    OptiScalerReplacementPlan Plan,
+    IReadOnlyList<OptiScalerReplacementResult> MultiProxyTargets,
+    IReadOnlyList<OptiScalerReplacementTarget> FamilyMismatchTargets);
