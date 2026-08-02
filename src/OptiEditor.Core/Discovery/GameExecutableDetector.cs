@@ -29,8 +29,9 @@ public static class GameExecutableDetector
     {
         var selected = candidates
             .Where(x => !IsExcluded(x.Path))
-            .OrderByDescending(x => x.Length)
+            .OrderByDescending(x => GameMasterNameMap.Find(x.Path) is not null)
             .ThenByDescending(x => !string.IsNullOrWhiteSpace(x.ProductName))
+            .ThenByDescending(x => x.Length)
             .ThenBy(x => System.IO.Path.GetFileName(x.Path), StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
         if (selected is null) return new(null, null, "Unknown Game");

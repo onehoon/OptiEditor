@@ -55,8 +55,8 @@ public sealed partial class EditorPage : Page
         foreach (var pair in presetValues)
         {
             var item = settings[pair.Key];
-            var status = string.Equals(item.CurrentRawValue, pair.Value.Value, StringComparison.Ordinal) ? "already applied" : "will change";
-            lines.Add($"[{pair.Value.Section}] {pair.Value.Key} = {pair.Value.Value} ({status})");
+            var status = item.IsModified ? "will change" : "already applied";
+            lines.Add($"[{pair.Value.Section}] {pair.Value.Key} = {item.CurrentRawValue} ({status})");
         }
 
         var presetIds = presetValues.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -66,10 +66,13 @@ public sealed partial class EditorPage : Page
         return lines;
     }
 
+    private bool IsControlledBySelectedPreset(EditorSettingItemViewModel item) =>
+        _selectedPresets.Any(x => x.Entries.Any(e => string.Equals(e.SettingId, item.Binding.Definition.Id, StringComparison.OrdinalIgnoreCase)));
+
     private void RevertAll_Click(object sender, RoutedEventArgs e) { ViewModel.RevertAll(); ClearPresetSelection(); RenderSettings(); }
     private void ResetAll_Click(object sender, RoutedEventArgs e) { ViewModel.ResetAllManagedToAuto(); ClearPresetSelection(); RenderSettings(); }
     private async void Reload_Click(object sender, RoutedEventArgs e) { if (ViewModel.Installation is { } installation) { await ViewModel.LoadAsync(installation); ClearPresetSelection(); await RenderPresetButtonsAsync(); RenderSettings(); } }
-    private void Revert_Click(object sender, RoutedEventArgs e) { if ((sender as Button)?.Tag is EditorSettingItemViewModel item) { item.Revert(); ViewModel.Update(item); RenderSettings(); } }
+    private void Revert_Click(object sender, RoutedEventArgs e) { if ((sender as Button)?.Tag is EditorSettingItemViewModel item) { item.Revert(); ViewModel.Update(item); if (IsControlledBySelectedPreset(item)) ReapplySelectedPresets(); else RenderSettings(); } }
     private void SettingSearchBox_TextChanged(object sender, TextChangedEventArgs e) => RenderSettings();
 
     private async Task RenderPresetButtonsAsync()

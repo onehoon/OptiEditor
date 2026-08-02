@@ -101,9 +101,9 @@ public sealed class DiscoveryTests
     }
 
     [Fact]
-    public void Game_exe_prefers_size_then_product_name_then_filename()
+    public void Game_exe_prefers_game_master_then_product_name_then_size_then_filename()
     {
-        var result = GameExecutableDetector.Select([new("C:\\b.exe", 500, null), new("C:\\a.exe", 10, "My Game")]); Assert.Equal("b.exe", result.FileName);
+        var result = GameExecutableDetector.Select([new("C:\\b.exe", 500, null), new("C:\\a.exe", 10, "My Game")]); Assert.Equal("a.exe", result.FileName);
         result = GameExecutableDetector.Select([new("C:\\b.exe", 500, "B Game"), new("C:\\a.exe", 500, "A Game")]); Assert.Equal("a.exe", result.FileName);
         result = GameExecutableDetector.Select([new("C:\\b.exe", 500, null), new("C:\\a.exe", 500, null)]); Assert.Equal("a.exe", result.FileName);
         Assert.Equal("Unknown Game", GameExecutableDetector.Select([]).DisplayName);
