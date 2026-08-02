@@ -7,7 +7,7 @@ namespace OptiEditor.Core.Tests;
 public sealed class DiscoveryTests
 {
     [Theory]
-    [InlineData("dxgi.dll")][InlineData("WINMM.DLL")][InlineData("OptiScaler.asi")]
+    [InlineData("dxgi.dll")][InlineData("OptiScaler.dll")][InlineData("WINMM.DLL")][InlineData("OptiScaler.asi")]
     public void Approved_proxy_names_are_accepted(string name) => Assert.True(OptiBinaryRules.IsApprovedProxyName(name));
     [Fact] public void Unknown_proxy_name_is_rejected() => Assert.False(OptiBinaryRules.IsApprovedProxyName("random.dll"));
 

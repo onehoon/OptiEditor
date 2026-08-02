@@ -6,7 +6,13 @@ namespace OptiEditor.Core.Tests;
 public sealed class PresetTests
 {
     [Fact]
-    public void Built_in_catalog_is_empty() => Assert.Empty(new BuiltInPresetProvider().GetAll());
+    public void Built_in_catalog_contains_the_default_presets()
+    {
+        var presets = new BuiltInPresetProvider().GetAll();
+        Assert.Equal(2, presets.Count);
+        Assert.Contains(presets, x => x.Name == "FSR4.1.1 for AMD RDNA2" && x.Family == OptiSchemaFamily.V10);
+        Assert.Contains(presets, x => x.Name == "FSR4.1.1 for Opti 0.9.x" && x.Family == OptiSchemaFamily.V09);
+    }
 
     [Fact]
     public async Task User_store_round_trips_without_builtin_entries()

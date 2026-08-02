@@ -22,7 +22,7 @@ public sealed partial class PresetsPage : Page
 
     private async void Delete_Click(object sender, RoutedEventArgs e) { if ((sender as Button)?.Tag is PresetDefinition preset) { if (preset.Source != PresetSource.User) { ViewModel.StatusText = "Built-in presets cannot be deleted."; return; } await ViewModel.DeleteAsync(preset); } }
     private async void Create_Click(object sender, RoutedEventArgs e) => await OpenPresetEditorAsync(null, (sender as Button)?.Tag is "V09" ? OptiSchemaFamily.V09 : OptiSchemaFamily.V10);
-    private async void Edit_Click(object sender, RoutedEventArgs e) { if ((sender as Button)?.Tag is PresetDefinition preset) { if (preset.Source != PresetSource.User) { ViewModel.StatusText = "Built-in presets are read-only."; return; } await OpenPresetEditorAsync(preset); } }
+    private async void Edit_Click(object sender, RoutedEventArgs e) { if ((sender as Button)?.Tag is PresetDefinition preset) { await OpenPresetEditorAsync(preset with { Source = PresetSource.User }); } }
 
     private async Task OpenPresetEditorAsync(PresetDefinition? existing, OptiSchemaFamily? requestedFamily = null)
     {

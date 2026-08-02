@@ -27,7 +27,9 @@ public partial class PresetsViewModel : ObservableObject
         {
             var user = await AppServices.Presets.LoadAsync();
             Presets.Clear();
-            foreach (var preset in AppServices.BuiltInPresets.GetAll().Concat(user).OrderBy(x => x.Source).ThenBy(x => x.Name)) Presets.Add(CreateCardItem(preset));
+            var builtIns = AppServices.BuiltInPresets.GetAll();
+            var overriddenIds = user.Select(x => x.Id).ToHashSet();
+            foreach (var preset in builtIns.Where(x => !overriddenIds.Contains(x.Id)).Concat(user).OrderBy(x => x.Name)) Presets.Add(CreateCardItem(preset));
             StatusText = Presets.Count == 0 ? "No user presets have been created." : $"{Presets.Count} presets available.";
             OnPropertyChanged(nameof(FilteredPresets));
         }

@@ -4,7 +4,7 @@ namespace OptiEditor.Core.Discovery;
 
 public static class OptiBinaryRules
 {
-    private static readonly string[] Priority = ["dxgi.dll", "winmm.dll", "version.dll", "dbghelp.dll", "d3d12.dll", "wininet.dll", "winhttp.dll", "OptiScaler.asi"];
+    private static readonly string[] Priority = ["dxgi.dll", "OptiScaler.dll", "winmm.dll", "version.dll", "dbghelp.dll", "d3d12.dll", "wininet.dll", "winhttp.dll", "OptiScaler.asi"];
     public static IReadOnlyList<string> CandidateNames => Priority;
 
     public static bool IsApprovedProxyName(string? fileName) =>
