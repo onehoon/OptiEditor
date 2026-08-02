@@ -10,6 +10,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 using OptiEditor.App.Views;
+using OptiEditor.Core.Storage;
 using WinRT.Interop;
 
 namespace OptiEditor.App;
@@ -36,7 +37,9 @@ public sealed partial class MainWindow : Window
     private async void Navigation_Loaded(object sender, RoutedEventArgs e)
     {
         Navigation.OpenPaneLength = MeasureAutoPaneWidth();
-        var startupTab = await Services.AppServices.StartupTab.LoadAsync();
+        var startupTab = StartupTabs.Games;
+        try { startupTab = await Services.AppServices.StartupTab.LoadAsync(); }
+        catch (Exception ex) { Services.AppServices.Logger.Error("Startup tab preference could not be loaded.", ex); }
         Navigation.SelectedItem = Navigation.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(item => item.Tag as string == startupTab)
             ?? Navigation.MenuItems[0];
     }

@@ -1,8 +1,7 @@
-using System.Collections.Concurrent;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using OptiEditor.Core.Models;
 using OptiEditor.Core.Schema;
+using OptiEditor.Core.Utilities;
 
 namespace OptiEditor.Core.Storage;
 
@@ -17,30 +16,16 @@ public interface IEditorVisibilityStore
     Task SaveAsync(IEnumerable<EditorVisibilityPreference> preferences, CancellationToken cancellationToken = default);
 }
 
-public sealed class EditorVisibilityStore(string? appData = null) : IEditorVisibilityStore
+public sealed class EditorVisibilityStore(string? appData = null, IDiagnosticLogger? logger = null) : IEditorVisibilityStore
 {
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _path = Path.Combine(appData ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OptiEditor"), "editor-visibility.json");
 
-    public async Task<IReadOnlyList<EditorVisibilityPreference>> LoadAsync(CancellationToken cancellationToken = default)
-    {
-        if (!File.Exists(_path)) return [];
-        await using var stream = File.Open(_path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return await JsonSerializer.DeserializeAsync<List<EditorVisibilityPreference>>(stream, cancellationToken: cancellationToken) ?? [];
-    }
+    public async Task<IReadOnlyList<EditorVisibilityPreference>> LoadAsync(CancellationToken cancellationToken = default) => await JsonFileStore.LoadAsync<List<EditorVisibilityPreference>>(_path, [], logger, cancellationToken);
 
-    public async Task SaveAsync(IEnumerable<EditorVisibilityPreference> preferences, CancellationToken cancellationToken = default)
+    public Task SaveAsync(IEnumerable<EditorVisibilityPreference> preferences, CancellationToken cancellationToken = default)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        var gate = Locks.GetOrAdd(_path, _ => new SemaphoreSlim(1, 1)); await gate.WaitAsync(cancellationToken);
-        var temporary = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            var distinct = preferences.GroupBy(x => (x.Family, x.Section), StringTupleComparer.Instance).Select(x => x.Last()).ToArray();
-            await using (var stream = File.Create(temporary)) await JsonSerializer.SerializeAsync(stream, distinct, cancellationToken: cancellationToken);
-            File.Move(temporary, _path, true);
-        }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); gate.Release(); }
+        var distinct = preferences.GroupBy(x => (x.Family, x.Section), StringTupleComparer.Instance).Select(x => x.Last()).ToArray();
+        return JsonFileStore.SaveAsync(_path, distinct, null, cancellationToken);
     }
 
     private sealed class StringTupleComparer : IEqualityComparer<(OptiSchemaFamily Family, string SettingId)>

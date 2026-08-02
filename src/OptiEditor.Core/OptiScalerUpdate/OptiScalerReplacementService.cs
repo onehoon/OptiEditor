@@ -70,6 +70,23 @@ public sealed class OptiScalerReplacementService(IFileVersionInfoProvider versio
     private async Task<OptiScalerReplacementResult> ReplaceOneAsync(string stagedPath, byte[] sourceHash, OptiInstallation target, CancellationToken cancellationToken)
     {
         string? temporaryPath = null;
+        string? rollbackPath = null;
+        var replaced = false;
+        var keepRollbackFile = false;
+
+        // Once the swap below has happened, ANY exit path other than a
+        // verified success (explicit mismatch or an exception thrown while
+        // reading the result) must try to restore the pre-replacement file
+        // before returning. A restore that fails must keep the rollback copy
+        // on disk instead of losing it in the finally cleanup below.
+        OptiScalerReplacementResult Recover(OptiScalerReplacementStatus status, OptiScalerReplacementReason reason, string message, Exception? exception = null)
+        {
+            if (!replaced || rollbackPath is null) return Result(target, status, reason, message, exception);
+            if (TryRestoreRollback(rollbackPath, target.OptiBinaryPath)) message += " The previous file was restored.";
+            else { keepRollbackFile = true; message += $" The previous file could not be restored; a copy was kept at: {rollbackPath}"; }
+            return Result(target, status, reason, message, exception);
+        }
+
         try
         {
             if (!File.Exists(target.OptiBinaryPath)) return Result(target, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.TargetMissing, "The installed OptiScaler binary is no longer available.");
@@ -83,19 +100,41 @@ public sealed class OptiScalerReplacementService(IFileVersionInfoProvider versio
             if (tempFile.Length != new FileInfo(stagedPath).Length || !CryptographicOperations.FixedTimeEquals(sourceHash, temporaryHash) || !sourceValidator.Validate(temporaryPath).IsValid)
                 return Result(target, OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.TemporaryValidationFailed, "The temporary OptiScaler file could not be verified.");
 
+            // Keep a transient rollback copy of the pre-replacement file. It is
+            // deleted before returning once it is no longer needed, so this does
+            // not create the persistent backup the OptiScaler Update feature
+            // intentionally omits; it only lets a failed final verification
+            // restore the previous file instead of leaving the installation
+            // with an unverified binary.
+            cancellationToken.ThrowIfCancellationRequested();
+            rollbackPath = UniqueRollbackPath(target.OptiBinaryPath);
+            await CopyAndFlushAsync(target.OptiBinaryPath, rollbackPath, cancellationToken);
+
             ReplaceWithoutBackup(temporaryPath, target.OptiBinaryPath);
             temporaryPath = null;
-            var finalHash = File.Exists(target.OptiBinaryPath) ? await HashAsync(target.OptiBinaryPath, cancellationToken) : [];
+            replaced = true;
+
+            // The swap itself cannot be canceled once started; verify it with
+            // CancellationToken.None so a cancellation requested in this window
+            // cannot turn an actually-successful replacement into a reported
+            // failure while leaving the new binary in place.
+            var finalHash = File.Exists(target.OptiBinaryPath) ? await HashAsync(target.OptiBinaryPath, CancellationToken.None) : [];
             if (!File.Exists(target.OptiBinaryPath) || !CryptographicOperations.FixedTimeEquals(sourceHash, finalHash) || !OptiBinaryRules.IsOptiScaler(versionInfo.Read(target.OptiBinaryPath)))
-                return Result(target, OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.FinalVerificationFailed, "The final OptiScaler file could not be verified.");
+                return Recover(OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.FinalVerificationFailed, "The final OptiScaler file could not be verified.");
+
             var installed = versionInfo.Read(target.OptiBinaryPath).NumericVersion;
             logger.Info($"OptiScaler binary replaced: {target.OptiBinaryPath}");
             return new(target.InstallDirectory, target.GameDisplayName, target.OptiBinaryFileName, target.FileVersion, installed, OptiScalerReplacementStatus.Replaced, OptiScalerReplacementReason.None);
         }
-        catch (UnauthorizedAccessException ex) { return Result(target, OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.AccessDenied, "Access to the target file was denied.", ex); }
-        catch (IOException ex) when (IsSharingViolation(ex)) { return Result(target, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.FileInUse, "The installed OptiScaler binary is currently in use.", ex); }
-        catch (Exception ex) { logger.Error($"OptiScaler replacement failed: {target.OptiBinaryPath}", ex); return Result(target, OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.UnexpectedFailure, "The target could not be replaced.", ex); }
-        finally { if (temporaryPath is not null) try { File.Delete(temporaryPath); } catch { } }
+        catch (OperationCanceledException) { return Recover(OptiScalerReplacementStatus.Canceled, OptiScalerReplacementReason.Canceled, "Replacement was canceled."); }
+        catch (UnauthorizedAccessException ex) { return Recover(OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.AccessDenied, "Access to the target file was denied.", ex); }
+        catch (IOException ex) when (IsSharingViolation(ex)) { return Recover(OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.FileInUse, "The installed OptiScaler binary is currently in use.", ex); }
+        catch (Exception ex) { logger.Error($"OptiScaler replacement failed: {target.OptiBinaryPath}", ex); return Recover(OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.UnexpectedFailure, "The target could not be replaced.", ex); }
+        finally
+        {
+            if (temporaryPath is not null) try { File.Delete(temporaryPath); } catch { }
+            if (rollbackPath is not null && !keepRollbackFile) try { File.Delete(rollbackPath); } catch { }
+        }
     }
 
     private static void ReplaceWithoutBackup(string temporaryPath, string targetPath)
@@ -103,9 +142,15 @@ public sealed class OptiScalerReplacementService(IFileVersionInfoProvider versio
         try { File.Replace(temporaryPath, targetPath, destinationBackupFileName: null, ignoreMetadataErrors: true); }
         catch (PlatformNotSupportedException) { File.Move(temporaryPath, targetPath, true); }
     }
+    private bool TryRestoreRollback(string rollbackPath, string targetPath)
+    {
+        try { File.Copy(rollbackPath, targetPath, overwrite: true); return true; }
+        catch (Exception ex) { logger.Error($"OptiScaler rollback failed after verification failure: {targetPath}", ex); return false; }
+    }
     private static bool IsSharingViolation(IOException exception) => exception.HResult is unchecked((int)0x80070020) or unchecked((int)0x80070021);
     private static OptiScalerReplacementResult Result(OptiInstallation target, OptiScalerReplacementStatus status, OptiScalerReplacementReason reason, string message, Exception? exception = null) => new(target.InstallDirectory, target.GameDisplayName, target.OptiBinaryFileName, target.FileVersion, null, status, reason, message, exception);
     private static string UniqueTemporaryPath(string targetPath) { var candidate = targetPath + ".optieditor.tmp"; return File.Exists(candidate) ? candidate + "." + Guid.NewGuid().ToString("N") : candidate; }
+    private static string UniqueRollbackPath(string targetPath) { var candidate = targetPath + ".optieditor.rollback"; return File.Exists(candidate) ? candidate + "." + Guid.NewGuid().ToString("N") : candidate; }
     private static async Task CopyAndFlushAsync(string source, string target, CancellationToken token) { await using var input = File.Open(source, FileMode.Open, FileAccess.Read, FileShare.Read); await using var output = File.Open(target, FileMode.CreateNew, FileAccess.Write, FileShare.None); await input.CopyToAsync(output, token); await output.FlushAsync(token); output.Flush(flushToDisk: true); }
     private static async Task<byte[]> HashAsync(string path, CancellationToken token) { await using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read); return await SHA256.HashDataAsync(stream, token); }
 }

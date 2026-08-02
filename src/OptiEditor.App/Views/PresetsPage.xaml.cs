@@ -83,7 +83,13 @@ public sealed partial class PresetsPage : Page
     private async void SavePreset_Click(object sender, RoutedEventArgs e)
     {
         var now = DateTimeOffset.UtcNow;
-        var preset = new PresetDefinition(_editingPreset?.Id ?? Guid.NewGuid(), PresetNameBox.Text.Trim(), string.IsNullOrWhiteSpace(PresetDescriptionBox.Text) ? null : PresetDescriptionBox.Text.Trim(), _editingFamily, PresetSource.User, _entryEditors.Where(x => x.Included).Select(x => new PresetEntry(x.Definition.Id, x.Value)).ToArray(), _editingPreset?.CreatedAt ?? now, now);
+        // _entryEditors only covers settings visible under the current editor
+        // visibility preferences. Entries for settings hidden (or otherwise not
+        // shown for editing) must be carried over untouched, not dropped.
+        var editableIds = _entryEditors.Select(x => x.Definition.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var preservedEntries = _editingPreset?.Entries.Where(x => !editableIds.Contains(x.SettingId)) ?? [];
+        var entries = preservedEntries.Concat(_entryEditors.Where(x => x.Included).Select(x => new PresetEntry(x.Definition.Id, x.Value))).ToArray();
+        var preset = new PresetDefinition(_editingPreset?.Id ?? Guid.NewGuid(), PresetNameBox.Text.Trim(), string.IsNullOrWhiteSpace(PresetDescriptionBox.Text) ? null : PresetDescriptionBox.Text.Trim(), _editingFamily, PresetSource.User, entries, _editingPreset?.CreatedAt ?? now, now);
         var changes = CreatePresetSaveReview(preset);
         if (!await SaveReviewDialog.ConfirmAsync(XamlRoot, "Review preset", "The following values will be saved in this preset.", changes)) return;
         var error = await ViewModel.SaveAsync(preset);

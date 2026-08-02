@@ -32,7 +32,12 @@ public sealed partial class SettingsPage : Page
         text.Children.Add(new TextBlock { Text = "Source INI comments", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], FontSize = 18 });
         text.Children.Add(new TextBlock { Text = "Show original OptiScaler INI comments in Editor and preset editing", Opacity = .7, TextWrapping = TextWrapping.Wrap });
         var toggle = new ToggleSwitch { OnContent = null, OffContent = null, Width = 40, MinWidth = 0, HorizontalAlignment = HorizontalAlignment.Right, Tag = true };
-        toggle.Toggled += async (_, _) => { if (toggle.Tag is not true) await Services.AppServices.SourceComments.SaveAsync(toggle.IsOn); };
+        toggle.Toggled += async (_, _) =>
+        {
+            if (toggle.Tag is true) return;
+            try { await Services.AppServices.SourceComments.SaveAsync(toggle.IsOn); }
+            catch (Exception ex) { Services.AppServices.Logger.Error("Source comment visibility could not be saved.", ex); }
+        };
         var content = CreateCardContent(icon, text, toggle);
         SettingsCategories.Children.Add(new Border { Child = content, Padding = new Thickness(18, 16, 18, 16), BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"], BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) });
         _ = LoadSourceCommentsAsync(toggle);
@@ -41,8 +46,9 @@ public sealed partial class SettingsPage : Page
     private static async Task LoadSourceCommentsAsync(ToggleSwitch toggle)
     {
         toggle.Tag = true;
-        toggle.IsOn = await Services.AppServices.SourceComments.LoadAsync();
-        toggle.Tag = false;
+        try { toggle.IsOn = await Services.AppServices.SourceComments.LoadAsync(); }
+        catch (Exception ex) { Services.AppServices.Logger.Error("Source comment visibility could not be loaded.", ex); }
+        finally { toggle.Tag = false; }
     }
 
     private void AddStartupTabCard()
@@ -63,14 +69,17 @@ public sealed partial class SettingsPage : Page
 
     private async Task LoadStartupTabAsync(ComboBox combo)
     {
-        var tab = await Services.AppServices.StartupTab.LoadAsync();
+        var tab = StartupTabs.Games;
+        try { tab = await Services.AppServices.StartupTab.LoadAsync(); }
+        catch (Exception ex) { Services.AppServices.Logger.Error("Startup tab preference could not be loaded.", ex); }
         combo.SelectedItem = combo.Items.OfType<ComboBoxItem>().First(item => item.Tag as string == tab);
     }
 
     private async void StartupTab_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if ((sender as ComboBox)?.SelectedItem is ComboBoxItem item && item.Tag is string tab)
-            await Services.AppServices.StartupTab.SaveAsync(tab);
+        if ((sender as ComboBox)?.SelectedItem is not ComboBoxItem item || item.Tag is not string tab) return;
+        try { await Services.AppServices.StartupTab.SaveAsync(tab); }
+        catch (Exception ex) { Services.AppServices.Logger.Error("Startup tab preference could not be saved.", ex); }
     }
 
     private void AddEditorVisibilityCard()
