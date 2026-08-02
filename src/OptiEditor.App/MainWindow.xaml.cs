@@ -7,6 +7,8 @@ using Microsoft.UI.Xaml;
 // and more about our project templates, see: http://aka.ms/winui-project-info.
 
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Navigation;
 using OptiEditor.App.Views;
 using WinRT.Interop;
 
@@ -51,7 +53,7 @@ public sealed partial class MainWindow : Window
 
     private double MeasureAutoPaneWidth()
     {
-        const double iconColumnAndPadding = 92; const double minPaneWidth = 160; var maxTextWidth = 0.0;
+        const double iconColumnAndPadding = 70; const double minPaneWidth = 160; var maxTextWidth = 0.0;
         foreach (var label in Navigation.MenuItems.Concat(Navigation.FooterMenuItems).OfType<NavigationViewItem>().Select(x => (x.Content as TextBlock)?.Text).Where(x => !string.IsNullOrWhiteSpace(x)))
         {
             var block = new TextBlock { Text = label }; block.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity)); maxTextWidth = Math.Max(maxTextWidth, block.DesiredSize.Width);
@@ -70,5 +72,26 @@ public sealed partial class MainWindow : Window
             "Games" => typeof(GamesPage), "Folders" => typeof(FoldersPage), "OptiScalerUpdate" => typeof(OptiScalerUpdatePage),
             "Presets" => typeof(PresetsPage), "Settings" => typeof(SettingsPage), _ => typeof(PlaceholderPage)
         }, item.Tag);
+    }
+
+    private void Navigation_BackRequested(NavigationView sender, NavigationViewBackRequestedEventArgs args)
+    {
+        if (RootFrame.CanGoBack) RootFrame.GoBack();
+    }
+
+    private void RootFrame_Navigated(object sender, NavigationEventArgs e)
+    {
+        Navigation.IsBackButtonVisible = RootFrame.CanGoBack
+            ? NavigationViewBackButtonVisible.Visible
+            : NavigationViewBackButtonVisible.Collapsed;
+    }
+
+    private void RootFrame_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (e.GetCurrentPoint(RootFrame).Properties.IsXButton1Pressed && RootFrame.CanGoBack)
+        {
+            RootFrame.GoBack();
+            e.Handled = true;
+        }
     }
 }

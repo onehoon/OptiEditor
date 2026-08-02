@@ -17,17 +17,17 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <TitleBar x:Name="AppTitleBar" Title="OptiEditor" />
-        <NavigationView x:Name="Navigation" Grid.Row="1" PaneDisplayMode="Left" OpenPaneLength="240" IsBackButtonVisible="Collapsed" IsSettingsVisible="False" Loaded="Navigation_Loaded" SelectionChanged="Navigation_SelectionChanged">
+        <NavigationView x:Name="Navigation" Grid.Row="1" PaneDisplayMode="Left" OpenPaneLength="240" IsBackButtonVisible="Collapsed" IsSettingsVisible="False" Loaded="Navigation_Loaded" SelectionChanged="Navigation_SelectionChanged" BackRequested="Navigation_BackRequested">
             <NavigationView.MenuItems>
-                <NavigationViewItem Tag="Games" IsSelected="True"><NavigationViewItem.Icon><SymbolIcon Symbol="Library" /></NavigationViewItem.Icon><TextBlock Text="Games" VerticalAlignment="Center" /></NavigationViewItem>
-                <NavigationViewItem Tag="Presets"><NavigationViewItem.Icon><SymbolIcon Symbol="Favorite" /></NavigationViewItem.Icon><TextBlock Text="Presets" VerticalAlignment="Center" /></NavigationViewItem>
-                <NavigationViewItem Tag="OptiScalerUpdate"><NavigationViewItem.Icon><SymbolIcon Symbol="Sync" /></NavigationViewItem.Icon><TextBlock Text="OptiScaler Update" VerticalAlignment="Center" /></NavigationViewItem>
-                <NavigationViewItem Tag="Folders"><NavigationViewItem.Icon><SymbolIcon Symbol="Folder" /></NavigationViewItem.Icon><TextBlock Text="Folders" VerticalAlignment="Center" /></NavigationViewItem>
+                <NavigationViewItem Tag="Games" IsSelected="True"><NavigationViewItem.Icon><SymbolIcon Symbol="Library" /></NavigationViewItem.Icon><TextBlock Text="Games" VerticalAlignment="Center" LineHeight="20" LineStackingStrategy="BlockLineHeight" /></NavigationViewItem>
+                <NavigationViewItem Tag="Presets"><NavigationViewItem.Icon><SymbolIcon Symbol="Favorite" /></NavigationViewItem.Icon><TextBlock Text="Presets" VerticalAlignment="Center" LineHeight="20" LineStackingStrategy="BlockLineHeight" /></NavigationViewItem>
+                <NavigationViewItem Tag="OptiScalerUpdate"><NavigationViewItem.Icon><SymbolIcon Symbol="Sync" /></NavigationViewItem.Icon><TextBlock Text="OptiScaler Update" VerticalAlignment="Center" LineHeight="20" LineStackingStrategy="BlockLineHeight" /></NavigationViewItem>
+                <NavigationViewItem Tag="Folders"><NavigationViewItem.Icon><SymbolIcon Symbol="Folder" /></NavigationViewItem.Icon><TextBlock Text="Folders" VerticalAlignment="Center" LineHeight="20" LineStackingStrategy="BlockLineHeight" /></NavigationViewItem>
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
-                <NavigationViewItem Tag="Settings"><NavigationViewItem.Icon><SymbolIcon Symbol="Setting" /></NavigationViewItem.Icon><TextBlock Text="Settings" VerticalAlignment="Center" /></NavigationViewItem>
+                <NavigationViewItem Tag="Settings"><NavigationViewItem.Icon><SymbolIcon Symbol="Setting" /></NavigationViewItem.Icon><TextBlock Text="Settings" VerticalAlignment="Center" LineHeight="20" LineStackingStrategy="BlockLineHeight" /></NavigationViewItem>
             </NavigationView.FooterMenuItems>
-            <Frame x:Name="RootFrame" />
+            <Frame x:Name="RootFrame" Navigated="RootFrame_Navigated" PointerPressed="RootFrame_PointerPressed" />
         </NavigationView>
     </Grid>
 </Window>

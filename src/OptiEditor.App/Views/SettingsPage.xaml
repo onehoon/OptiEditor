@@ -16,7 +16,7 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <StackPanel Spacing="8">
-                <Button Content="&#xE72B;  Back" Click="Back_Click" HorizontalAlignment="Left" />
+                <Button Content="Back" Click="Back_Click" HorizontalAlignment="Left" />
                 <TextBlock Text="Editor visibility" Style="{StaticResource TitleTextBlockStyle}" />
                 <TextBlock Text="Choose which OptiScaler settings appear when editing a game." Opacity="0.7" TextWrapping="Wrap" />
                 <StackPanel Orientation="Horizontal" Spacing="8">

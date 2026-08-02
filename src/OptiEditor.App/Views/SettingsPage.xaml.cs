@@ -9,6 +9,7 @@ namespace OptiEditor.App.Views;
 
 public sealed partial class SettingsPage : Page
 {
+    private const string EditorVisibilityNavigationParameter = "EditorVisibility";
     public EditorVisibilitySettingsViewModel ViewModel { get; } = new();
 
     public SettingsPage()
@@ -77,18 +78,31 @@ public sealed partial class SettingsPage : Page
         return content;
     }
 
-    private async void EditorVisibility_Click(object sender, RoutedEventArgs e)
+    protected override async void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
     {
-        SettingsHome.Visibility = Visibility.Collapsed;
-        EditorVisibilityDetail.Visibility = Visibility.Visible;
-        await ViewModel.LoadAsync(OptiSchemaFamily.V10);
-        Render();
+        base.OnNavigatedTo(e);
+        if (e.Parameter is EditorVisibilityNavigationParameter)
+        {
+            SettingsHome.Visibility = Visibility.Collapsed;
+            EditorVisibilityDetail.Visibility = Visibility.Visible;
+            await ViewModel.LoadAsync(OptiSchemaFamily.V10);
+            Render();
+        }
+        else
+        {
+            EditorVisibilityDetail.Visibility = Visibility.Collapsed;
+            SettingsHome.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void EditorVisibility_Click(object sender, RoutedEventArgs e)
+    {
+        Frame.Navigate(typeof(SettingsPage), EditorVisibilityNavigationParameter);
     }
 
     private void Back_Click(object sender, RoutedEventArgs e)
     {
-        EditorVisibilityDetail.Visibility = Visibility.Collapsed;
-        SettingsHome.Visibility = Visibility.Visible;
+        if (Frame.CanGoBack) Frame.GoBack();
     }
 
     private async void Family_Click(object sender, RoutedEventArgs e)
