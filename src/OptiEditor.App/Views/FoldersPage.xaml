@@ -7,7 +7,7 @@
         <TextBlock Text="Folders" Style="{StaticResource TitleTextBlockStyle}"/>
         <TextBlock Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" TextWrapping="Wrap"/>
       </StackPanel>
-      <Button Grid.Column="1" Content="Add Folder..." Click="AddFolder_Click" VerticalAlignment="Center"/>
+      <Button Grid.Column="1" Content="Add Folder..." Click="AddFolder_Click" VerticalAlignment="Center" IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BooleanNegationConverter}}"/>
     </Grid>
     <ScrollViewer Grid.Row="1">
       <ItemsControl ItemsSource="{x:Bind ViewModel.Roots, Mode=OneWay}">
@@ -16,10 +16,10 @@
             <Grid Margin="0,4" ColumnSpacing="12">
               <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
               <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                <CheckBox Width="20" Height="20" MinWidth="0" MinHeight="0" Padding="0" IsChecked="{x:Bind IsEnabled, Mode=TwoWay}" VerticalAlignment="Center"/>
+                <CheckBox Width="20" Height="20" MinWidth="0" MinHeight="0" Padding="0" IsChecked="{x:Bind IsEnabled, Mode=TwoWay}" IsEnabled="{x:Bind IsBusy, Mode=OneWay, Converter={StaticResource BooleanNegationConverter}}" VerticalAlignment="Center"/>
                 <TextBlock Text="{x:Bind Path}" VerticalAlignment="Center" TextWrapping="Wrap"/>
               </StackPanel>
-              <Button Grid.Column="1" Content="Remove" Click="Remove_Click" Tag="{x:Bind}"/>
+              <Button Grid.Column="1" Content="Remove" Click="Remove_Click" Tag="{x:Bind}" IsEnabled="{x:Bind IsBusy, Mode=OneWay, Converter={StaticResource BooleanNegationConverter}}"/>
             </Grid>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
