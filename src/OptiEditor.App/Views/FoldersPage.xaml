@@ -9,7 +9,7 @@
       </StackPanel>
       <Button Grid.Column="1" Content="Add Folder..." Click="AddFolder_Click" VerticalAlignment="Center"/>
     </Grid>
-    <ScrollViewer Grid.Row="1" Style="{StaticResource PageScrollViewerStyle}">
+    <ScrollViewer Grid.Row="1">
       <ItemsControl ItemsSource="{x:Bind ViewModel.Roots, Mode=OneWay}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:ScanRootItemViewModel">
