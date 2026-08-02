@@ -22,6 +22,13 @@ jobs:
       - name: Regenerate schema from upstream source
         shell: pwsh
         run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sync-OptiScalerSchema.ps1
+      - name: Regenerate a second time to rule out run-to-run non-determinism
+        shell: pwsh
+        run: |
+          Copy-Item src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs "$env:RUNNER_TEMP/first-generation.cs"
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sync-OptiScalerSchema.ps1
+          $rerunDiff = Compare-Object (Get-Content "$env:RUNNER_TEMP/first-generation.cs") (Get-Content src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs)
+          "IS_NONDETERMINISTIC=$(if ($rerunDiff) { 'true' } else { 'false' })" >> $env:GITHUB_ENV
       - name: Open or update an issue when upstream changed
         shell: pwsh
         env:
@@ -34,11 +41,41 @@ jobs:
             exit 0
           }
 
+          # Capture what actually changed instead of only detecting that
+          # something did: past reports gave no evidence to diagnose whether a
+          # detected change was a real upstream edit or a generator bug, which
+          # made repeat flapping (see #17, #20) impossible to root-cause from
+          # the issue alone.
+          $diffLines = git diff -- src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs
+          $diff = ($diffLines | Select-Object -First 400) -join "`n"
+          if ($diffLines.Count -gt 400) { $diff += "`n... (truncated; $($diffLines.Count) lines total)" }
+
+          # Backticks are PowerShell's escape character, so they cannot appear
+          # literally inside a double-quoted here-string (the previous version
+          # of this script had exactly that bug: `` `release/0.9` `` was parsed
+          # as the `` `r `` carriage-return escape followed by unescaped text,
+          # silently mangling every posted issue body). Build every backtick
+          # from a single-quoted, non-interpolating literal instead.
+          $tick = '`'
+          $fence = '```'
+
+          $nonDeterminismWarning = ""
+          if ($env:IS_NONDETERMINISTIC -eq 'true') {
+            $nonDeterminismWarning = "`n**Warning:** regenerating a second time in this same run, against the same checked-out commit, produced a *different* result than the first generation. This points at non-determinism in ${tick}tools/Sync-OptiScalerSchema.ps1${tick} itself (or a transient fetch problem), not necessarily a genuine upstream change -- investigate before trusting the diff below.`n"
+          }
+
           $title = "[Schema Sync] OptiScaler upstream schema changed"
           $body = @"
-          The daily schema check detected a change in OptiScaler's `release/0.9` or `master` source.
-
+          The daily schema check detected a change in OptiScaler's ${tick}release/0.9${tick} or ${tick}master${tick} source.
+          $nonDeterminismWarning
           Review the generated diff, validate it locally, then commit the refreshed catalog deliberately. Release CI does not automatically consume upstream changes.
+
+          <details><summary>Diff against the committed catalog</summary>
+
+          ${fence}diff
+          $diff
+          ${fence}
+          </details>
           "@
           $existing = gh issue list --repo $env:REPOSITORY --state open --search "$title in:title" --json number --jq '.[0].number'
           if ($existing) {
