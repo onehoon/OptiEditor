@@ -26,21 +26,24 @@ public sealed partial class EditorPage : Page
     private void ResetAll_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { ViewModel.ResetAllManagedToAuto(); RenderSettings(); }
     private async void Reload_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { if (ViewModel.Installation is { } installation) { await ViewModel.LoadAsync(installation); RenderSettings(); } }
     private void Revert_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) { if ((sender as Button)?.Tag is EditorSettingItemViewModel item) { item.Revert(); ViewModel.Update(item); RenderSettings(); } }
+    private void SettingSearchBox_TextChanged(object sender, TextChangedEventArgs e) => RenderSettings();
     private void RenderSettings()
     {
         SettingsPanel.Children.Clear();
-        foreach (var group in ViewModel.Settings.GroupBy(x => x.GroupName))
+        var search = SettingSearchBox?.Text?.Trim() ?? string.Empty;
+        var matchingSettings = ViewModel.Settings.Where(item => string.IsNullOrEmpty(search) || item.Binding.Definition.IniKey.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+        foreach (var group in matchingSettings.GroupBy(x => x.GroupName))
         {
             var rows = new StackPanel { Spacing = 8 };
             foreach (var item in group)
             {
                 var grid = new Grid { ColumnSpacing = 12 }; grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) }); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 var label = new StackPanel { Spacing = 3 }; label.Children.Add(new TextBlock { Text = item.DisplayName, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] }); if (!string.IsNullOrWhiteSpace(item.Description)) label.Children.Add(new TextBlock { Text = item.Description, TextWrapping = TextWrapping.Wrap }); if (_showSourceComments && !string.IsNullOrWhiteSpace(item.Binding.Definition.SourceComment)) label.Children.Add(new TextBlock { Text = item.Binding.Definition.SourceComment, TextWrapping = TextWrapping.Wrap, Opacity = .7 }); var warning = new TextBlock(); warning.SetBinding(TextBlock.TextProperty, new Binding { Source = item, Path = new PropertyPath(nameof(EditorSettingItemViewModel.UnknownValueWarningMessage)), Mode = BindingMode.OneWay }); label.Children.Add(warning); grid.Children.Add(label);
-                SettingControlBase input = item.Binding.Definition.InputKind == OptiEditor.Core.Schema.SettingInputKind.Stepper ? new AutoStepperSettingControl(item, ViewModel.Update) : item.Binding.Definition.ValueKind switch { OptiEditor.Core.Schema.SettingValueKind.Boolean => new AutoBooleanSettingControl(item, ViewModel.Update), OptiEditor.Core.Schema.SettingValueKind.Enum => new EnumSettingControl(item, ViewModel.Update), OptiEditor.Core.Schema.SettingValueKind.Shortcut => new ShortcutSettingControl(item, ViewModel.Update), _ => new AutoNumberSettingControl(item, ViewModel.Update) };
+                var input = SettingValueControlFactory.Create(item.Binding.Definition, item.CurrentRawValue, value => { item.CurrentRawValue = value; ViewModel.Update(item); }, item.InputHint);
                 Grid.SetColumn(input, 1); grid.Children.Add(input); var actions = new StackPanel { Spacing = 4 }; actions.Children.Add(new Button { Content = "Revert", Tag = item }); var validation = new TextBlock { Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.IndianRed), TextWrapping = TextWrapping.Wrap, MaxWidth = 180 }; validation.SetBinding(TextBlock.TextProperty, new Binding { Source = item, Path = new PropertyPath(nameof(EditorSettingItemViewModel.BlockingValidationMessage)), Mode = BindingMode.OneWay }); actions.Children.Add(validation); Grid.SetColumn(actions, 2); grid.Children.Add(actions);
                 ((Button)actions.Children[0]).Click += Revert_Click; rows.Children.Add(grid);
             }
-            SettingsPanel.Children.Add(new CollapsibleSectionCard(group.First().GroupDisplayName ?? group.Key, rows));
+            SettingsPanel.Children.Add(new CollapsibleSectionCard(group.First().GroupDisplayName ?? group.Key, rows, !string.IsNullOrEmpty(search)));
         }
     }
     private async Task ReviewPresetAsync(OptiEditor.Core.Presets.PresetDefinition preset)

@@ -108,11 +108,33 @@ function Parse-SourceMetadata([string] $Config, [string] $ConfigHeader, [string]
         if ($metadata.Kind -eq 'String') {
             $converter = [regex]::Match($remaining, '\.transform\(CodeTo(?<name>\w+)\)')
             if ($converter.Success -and $converterOptions.ContainsKey($converter.Groups['name'].Value)) { $metadata.Options = $converterOptions[$converter.Groups['name'].Value] }
+            if ($metadata.Options.Count -eq 0) {
+                $choices = [System.Collections.Generic.List[object]]::new()
+                foreach ($match in [regex]::Matches($remaining, 'lstrcmpiA\([^,]+,\s*"(?<value>[^"]+)"\)\s*==\s*0')) {
+                    $value = $match.Groups['value'].Value
+                    if (-not $choices.Exists([Predicate[object]] { param($item) [string]::Equals($item.Value, $value, [StringComparison]::OrdinalIgnoreCase) })) {
+                        $choices.Add([pscustomobject]@{ Value = $value; Label = $value })
+                    }
+                }
+                if ($choices.Count -ge 2) { $metadata.Options = $choices.ToArray() }
+            }
         }
 
     }
 
     return [pscustomobject]@{ Reads = $reads; Known = $known }
+}
+
+function Get-IniStringChoices([string] $SourceComment) {
+    $choices = [System.Collections.Generic.List[string]]::new()
+    foreach ($line in $SourceComment -split "`n") {
+        foreach ($token in $line -split ',') {
+            $leading = [regex]::Match($token, '^\s*(?<value>[a-z][a-z0-9_]*)(?=\s*(?:\(|-|,|$))')
+            if ($leading.Success -and -not ($choices -contains $leading.Groups['value'].Value)) { $choices.Add($leading.Groups['value'].Value) }
+        }
+    }
+    if ($SourceComment -match '-\s*Default\s*\(auto\)\s*is\s*nofg\s*$') { return @($choices | Where-Object { -not [string]::Equals($_, 'nofg', [StringComparison]::OrdinalIgnoreCase) }) }
+    return $choices.ToArray()
 }
 
 function Apply-MenuDiscreteChoices($Reads, [string] $MenuSource) {
@@ -161,6 +183,21 @@ function Get-Entries([string] $Ref) {
             $kind = if ($null -eq $source) { 'String' } else { $source.Kind }
             [object[]] $options = @()
             if ($null -ne $source) { $options = @($source.Options) }
+            if ($kind -eq 'String') {
+                $documentedChoices = @(Get-IniStringChoices $sourceComment)
+                if ($documentedChoices.Count -ge 2) {
+                    if ($options.Count -gt 0) {
+                        $options = @($documentedChoices | ForEach-Object {
+                            $documented = $_
+                            $match = $options | Where-Object { [string]::Equals($_.Value, $documented, [StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+                            if ($null -ne $match) { [pscustomobject]@{ Value = $documented; Label = $match.Label } }
+                        } | Where-Object { $null -ne $_ })
+                    }
+                    else {
+                        $options = @($documentedChoices | ForEach-Object { [pscustomobject]@{ Value = $_; Label = $_ } })
+                    }
+                }
+            }
             $type = switch -Regex ($kind) {
                 '^Bool$' { 'Boolean'; break }
                 '^(Int|UInt)$' { if ($options.Count -gt 0) { 'Enum' } else { 'Integer' }; break }

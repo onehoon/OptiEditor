@@ -29,9 +29,9 @@ public sealed partial class SettingsPage : Page
     {
         var icon = new SymbolIcon(Symbol.Comment) { VerticalAlignment = VerticalAlignment.Center };
         var text = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(new TextBlock { Text = "Source INI comments", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"] });
+        text.Children.Add(new TextBlock { Text = "Source INI comments", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], FontSize = 18 });
         text.Children.Add(new TextBlock { Text = "Show original OptiScaler INI comments in Editor and preset editing", Opacity = .7, TextWrapping = TextWrapping.Wrap });
-        var toggle = new ToggleSwitch { OnContent = null, OffContent = null, HorizontalAlignment = HorizontalAlignment.Right, Tag = true };
+        var toggle = new ToggleSwitch { OnContent = null, OffContent = null, Width = 40, MinWidth = 0, HorizontalAlignment = HorizontalAlignment.Right, Tag = true };
         toggle.Toggled += async (_, _) => { if (toggle.Tag is not true) await Services.AppServices.SourceComments.SaveAsync(toggle.IsOn); };
         var content = CreateCardContent(icon, text, toggle);
         SettingsCategories.Children.Add(new Border { Child = content, Padding = new Thickness(18, 16, 18, 16), BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"], BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8) });
@@ -49,7 +49,7 @@ public sealed partial class SettingsPage : Page
     {
         var icon = new SymbolIcon(Symbol.Play) { VerticalAlignment = VerticalAlignment.Center };
         var text = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(new TextBlock { Text = "Startup tab", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"] });
+        text.Children.Add(new TextBlock { Text = "Startup tab", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], FontSize = 18 });
         text.Children.Add(new TextBlock { Text = "Choose the page shown when OptiEditor starts", Opacity = .7, TextWrapping = TextWrapping.Wrap });
         var combo = new ComboBox { Width = 190, VerticalAlignment = VerticalAlignment.Center };
         combo.Items.Add(new ComboBoxItem { Content = "Games", Tag = StartupTabs.Games });
@@ -77,7 +77,7 @@ public sealed partial class SettingsPage : Page
     {
         var icon = new SymbolIcon(Symbol.Edit) { VerticalAlignment = VerticalAlignment.Center };
         var text = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(new TextBlock { Text = "Section visibility", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"] });
+        text.Children.Add(new TextBlock { Text = "Section visibility", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], FontSize = 18 });
         text.Children.Add(new TextBlock { Text = "Choose which OptiScaler INI sections are shown while editing", Opacity = .7, TextWrapping = TextWrapping.Wrap });
 
         var chevron = new SymbolIcon(Symbol.Forward) { VerticalAlignment = VerticalAlignment.Center, Opacity = .7 };
@@ -152,7 +152,7 @@ public sealed partial class SettingsPage : Page
         {
             if (index % 2 == 0) SettingsPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var item = ViewModel.Sections[index];
-            var title = new TextBlock { Text = item.Section, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], VerticalAlignment = VerticalAlignment.Center };
+            var title = new TextBlock { Text = item.Section, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], FontSize = 18, VerticalAlignment = VerticalAlignment.Center };
             var toggle = new ToggleSwitch { IsOn = item.IsVisible, Tag = item, OnContent = null, OffContent = null, HorizontalAlignment = HorizontalAlignment.Right };
             toggle.Toggled += (_, _) => { if (toggle.Tag is EditorVisibilitySectionItemViewModel current) { current.IsVisible = toggle.IsOn; current.IsOverridden = current.IsVisible != current.DefaultVisible; } };
             var content = CreateCardContent(new SymbolIcon(Symbol.Bullets) { VerticalAlignment = VerticalAlignment.Center }, title, toggle);

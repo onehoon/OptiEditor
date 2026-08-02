@@ -1,20 +1,33 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using OptiEditor.App.ViewModels;
 using OptiEditor.Core.Schema;
 
 namespace OptiEditor.App.Controls;
 
+public static class SettingValueControlFactory
+{
+    public static SettingControlBase Create(SettingDefinition definition, string currentRawValue, Action<string> changed, string? inputHint = null) =>
+        definition.InputKind == SettingInputKind.Stepper ? new AutoStepperSettingControl(definition, currentRawValue, changed) :
+        definition.ValueKind switch
+        {
+            SettingValueKind.Boolean => new AutoBooleanSettingControl(currentRawValue, changed),
+            SettingValueKind.Enum => new EnumSettingControl(definition, currentRawValue, changed),
+            SettingValueKind.Shortcut => new ShortcutSettingControl(currentRawValue, changed),
+            _ => new AutoNumberSettingControl(currentRawValue, changed, inputHint ?? definition.Description)
+        };
+}
+
 public abstract class SettingControlBase : StackPanel
 {
-    protected SettingControlBase(EditorSettingItemViewModel item, Action<EditorSettingItemViewModel> changed)
+    private string _currentRawValue;
+    private readonly Action<string> _changed;
+
+    protected SettingControlBase(string currentRawValue, Action<string> changed)
     {
-        Item = item; Changed = changed; Spacing = 4;
+        _currentRawValue = currentRawValue; _changed = changed; Spacing = 4;
     }
-    protected EditorSettingItemViewModel Item { get; }
-    protected Action<EditorSettingItemViewModel> Changed { get; }
-    protected void SetValue(string value) { if (Item.CurrentRawValue == value) return; Item.CurrentRawValue = value; Changed(Item); }
+    protected void SetValue(string value) { if (_currentRawValue == value) return; _currentRawValue = value; _changed(value); }
 }
 
 public sealed class CollapsibleSectionCard : Grid
@@ -32,7 +45,7 @@ public sealed class CollapsibleSectionCard : Grid
         headerContent.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         headerContent.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         headerContent.Children.Add(new SymbolIcon(Symbol.Bullets) { VerticalAlignment = VerticalAlignment.Center });
-        var titleText = new TextBlock { Text = title, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], VerticalAlignment = VerticalAlignment.Center };
+        var titleText = new TextBlock { Text = title, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], FontSize = 18, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(titleText, 1); headerContent.Children.Add(titleText);
         _chevron = new TextBlock { Text = "›", FontSize = 20, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(_chevron, 2); headerContent.Children.Add(_chevron);
@@ -40,7 +53,7 @@ public sealed class CollapsibleSectionCard : Grid
         header.Click += (_, _) => IsExpanded = !IsExpanded;
         root.Children.Add(header);
 
-        _body = new StackPanel { Spacing = 8, Padding = new Thickness(14, 0, 14, 14), Visibility = Visibility.Collapsed };
+        _body = new StackPanel { Spacing = 8, Padding = new Thickness(14, 8, 14, 8), Visibility = Visibility.Collapsed };
         _body.Children.Add(content);
         root.Children.Add(_body);
         Children.Add(new Border
@@ -66,10 +79,10 @@ public sealed class CollapsibleSectionCard : Grid
 
 public sealed class AutoBooleanSettingControl : SettingControlBase
 {
-    public AutoBooleanSettingControl(EditorSettingItemViewModel item, Action<EditorSettingItemViewModel> changed) : base(item, changed)
+    public AutoBooleanSettingControl(string currentRawValue, Action<string> changed) : base(currentRawValue, changed)
     {
         var combo = new ComboBox { MinWidth = 220 };
-        Add(combo, "auto", "Auto"); Add(combo, "true", "Enabled"); Add(combo, "false", "Disabled"); Select(combo, item.CurrentRawValue);
+        Add(combo, "auto", "Auto"); Add(combo, "true", "Enabled"); Add(combo, "false", "Disabled"); Select(combo, currentRawValue);
         combo.SelectionChanged += (_, _) => { if (combo.SelectedItem is ComboBoxItem choice) SetValue((string)choice.Tag); };
         Children.Add(combo);
     }
@@ -79,13 +92,13 @@ public sealed class AutoBooleanSettingControl : SettingControlBase
 
 public sealed class EnumSettingControl : SettingControlBase
 {
-    public EnumSettingControl(EditorSettingItemViewModel item, Action<EditorSettingItemViewModel> changed) : base(item, changed)
+    public EnumSettingControl(SettingDefinition definition, string currentRawValue, Action<string> changed) : base(currentRawValue, changed)
     {
         var combo = new ComboBox { MinWidth = 220 };
-        if (item.Binding.Definition.SupportsAuto) combo.Items.Add(new ComboBoxItem { Tag = "auto", Content = "Auto" });
-        foreach (var option in item.Options) combo.Items.Add(new ComboBoxItem { Tag = option.Value, Content = option.Label });
-        if (!item.Options.Any(x => string.Equals(x.Value, item.CurrentRawValue, StringComparison.OrdinalIgnoreCase))) combo.Items.Add(new ComboBoxItem { Tag = item.CurrentRawValue, Content = $"Unknown (preserved): {item.CurrentRawValue}" });
-        combo.SelectedItem = combo.Items.OfType<ComboBoxItem>().FirstOrDefault(x => string.Equals((string)x.Tag, item.CurrentRawValue, StringComparison.OrdinalIgnoreCase));
+        if (definition.SupportsAuto) combo.Items.Add(new ComboBoxItem { Tag = "auto", Content = "Auto" });
+        foreach (var option in definition.Options) combo.Items.Add(new ComboBoxItem { Tag = option.Value, Content = option.Label });
+        if (!definition.Options.Any(x => string.Equals(x.Value, currentRawValue, StringComparison.OrdinalIgnoreCase))) combo.Items.Add(new ComboBoxItem { Tag = currentRawValue, Content = $"Unknown (preserved): {currentRawValue}" });
+        combo.SelectedItem = combo.Items.OfType<ComboBoxItem>().FirstOrDefault(x => string.Equals((string)x.Tag, currentRawValue, StringComparison.OrdinalIgnoreCase));
         combo.SelectionChanged += (_, _) => { if (combo.SelectedItem is ComboBoxItem choice) SetValue((string)choice.Tag); };
         Children.Add(combo);
     }
@@ -93,22 +106,21 @@ public sealed class EnumSettingControl : SettingControlBase
 
 public sealed class AutoNumberSettingControl : SettingControlBase
 {
-    public AutoNumberSettingControl(EditorSettingItemViewModel item, Action<EditorSettingItemViewModel> changed) : base(item, changed)
+    public AutoNumberSettingControl(string currentRawValue, Action<string> changed, string inputHint) : base(currentRawValue, changed)
     {
-        var box = new TextBox { Text = item.CurrentRawValue, PlaceholderText = item.InputHint, MinWidth = 220 };
+        var box = new TextBox { Text = currentRawValue, PlaceholderText = inputHint, MinWidth = 220, VerticalContentAlignment = VerticalAlignment.Center };
         box.TextChanged += (_, _) => SetValue(box.Text); Children.Add(box);
     }
 }
 
 public sealed class AutoStepperSettingControl : SettingControlBase
 {
-    public AutoStepperSettingControl(EditorSettingItemViewModel item, Action<EditorSettingItemViewModel> changed) : base(item, changed)
+    public AutoStepperSettingControl(SettingDefinition definition, string currentRawValue, Action<string> changed) : base(currentRawValue, changed)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         var auto = new Button { Content = "Auto" };
         auto.Click += (_, _) => SetValue("auto");
         row.Children.Add(auto);
-        var definition = item.Binding.Definition;
         var number = new NumberBox
         {
             Minimum = definition.Minimum ?? double.MinValue,
@@ -116,7 +128,7 @@ public sealed class AutoStepperSettingControl : SettingControlBase
             SmallChange = definition.Step ?? 1,
             SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline,
             MinWidth = 180,
-            Value = double.TryParse(item.CurrentRawValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var current) ? current : definition.Minimum ?? 0
+            Value = double.TryParse(currentRawValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var current) ? current : definition.Minimum ?? 0
         };
         number.ValueChanged += (_, _) =>
         {
@@ -137,7 +149,7 @@ public sealed class ShortcutSettingControl : SettingControlBase
     private readonly TextBlock _captureHint;
     private bool _isCapturing;
 
-    public ShortcutSettingControl(EditorSettingItemViewModel item, Action<EditorSettingItemViewModel> changed) : base(item, changed)
+    public ShortcutSettingControl(string currentRawValue, Action<string> changed) : base(currentRawValue, changed)
     {
         var choices = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         AddChoice(choices, "Auto", "auto");
@@ -147,7 +159,7 @@ public sealed class ShortcutSettingControl : SettingControlBase
         choices.Children.Add(capture);
         Children.Add(choices);
 
-        _box = new TextBox { Text = item.CurrentRawValue, PlaceholderText = "Raw input: Auto, -1, decimal key, or 0xNN", MinWidth = 220 };
+        _box = new TextBox { Text = currentRawValue, PlaceholderText = "Raw input: Auto, -1, decimal key, or 0xNN", MinWidth = 220, VerticalContentAlignment = VerticalAlignment.Center };
         _box.TextChanged += (_, _) => SetValue(_box.Text);
         _box.KeyDown += OnKeyDown;
         Children.Add(_box);

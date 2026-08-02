@@ -42,6 +42,19 @@ public sealed class SchemaTests
         var xeFgInterpolation = schema.FindById("XeFG.InterpolationCount")!;
         Assert.Equal(SettingValueKind.Enum, xeFgInterpolation.ValueKind);
         Assert.Equal(["1", "2", "3"], xeFgInterpolation.Options.Select(x => x.Value));
+
+        var v09 = new Opti09SchemaProvider();
+        Assert.Equal(["fsr22", "fsr31", "xess", "xess_12", "fsr21_12", "fsr22_12", "fsr31_12", "dlss"], v09.FindById("Upscalers.Dx11Upscaler")!.Options.Select(x => x.Value));
+        Assert.Equal(["dlssg", "nukems", "fsrfg", "upscaler", "fsrfg30"], v09.FindById("FrameGen.FGInput")!.Options.Select(x => x.Value));
+        Assert.Equal(["fsrfg", "xefg", "nukems"], v09.FindById("FrameGen.FGOutput")!.Options.Select(x => x.Value));
+        Assert.Equal(["fsr22", "fsr31", "xess", "xess_12", "fsr21_12", "fsr22_12", "ffx_12", "dlss"], schema.FindById("Upscalers.Dx11Upscaler")!.Options.Select(x => x.Value));
+        Assert.Equal(["dlssg", "nvngxfg", "fsrfg", "upscaler", "fsrfg30"], schema.FindById("FrameGen.FGInput")!.Options.Select(x => x.Value));
+        Assert.DoesNotContain(schema.FindById("FrameGen.FGInput")!.Options, x => x.Value.Equals("nukems", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(["fsrfg", "xefg", "nvngxfg", "dlssg", "dlssgwithnvngx"], schema.FindById("FrameGen.FGOutput")!.Options.Select(x => x.Value));
+
+        foreach (var id in new[] { "Upscalers.Dx11Upscaler", "Upscalers.Dx12Upscaler", "Upscalers.VulkanUpscaler", "FrameGen.FGInput", "FrameGen.FGOutput" }) Assert.Equal(SettingValueKind.Enum, v09.FindById(id)!.ValueKind);
+        foreach (var id in new[] { "Upscalers.Dx11Upscaler", "Upscalers.Dx12Upscaler", "Upscalers.VulkanUpscaler", "FrameGen.FGInput", "FrameGen.FGOutput", "Sharpness.Shader" }) Assert.Equal(SettingValueKind.Enum, schema.FindById(id)!.ValueKind);
+        foreach (var id in new[] { "Spoofing.DxgiBlacklist", "Log.LogFileName" }) { Assert.Equal(SettingValueKind.String, v09.FindById(id)!.ValueKind); Assert.Equal(SettingValueKind.String, schema.FindById(id)!.ValueKind); }
     }
 
     [Fact]

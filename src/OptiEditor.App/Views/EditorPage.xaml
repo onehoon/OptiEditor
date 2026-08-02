@@ -3,10 +3,10 @@
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
     <Grid ColumnSpacing="16">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-      <StackPanel><TextBlock Text="{x:Bind ViewModel.Installation.GameDisplayName, Mode=OneWay}" Style="{StaticResource TitleTextBlockStyle}"/><TextBlock Text="{x:Bind ViewModel.Installation.GameExeName, Mode=OneWay}"/><TextBlock Text="{x:Bind ViewModel.Installation.ProductVersion, Mode=OneWay}"/><TextBlock Text="{x:Bind ViewModel.Installation.OptiBinaryFileName, Mode=OneWay}"/></StackPanel>
+      <StackPanel><TextBlock Text="{x:Bind ViewModel.Installation.GameDisplayName, Mode=OneWay}" Style="{StaticResource TitleTextBlockStyle}"/><TextBlock Text="{x:Bind ViewModel.Installation.GameExeName, Mode=OneWay}"/><TextBlock><Run Text="{x:Bind ViewModel.Installation.OptiBinaryFileName, Mode=OneWay}"/><Run Text=" ("/><Run Text="{x:Bind ViewModel.Installation.ProductVersion, Mode=OneWay}"/><Run Text=")"/></TextBlock></StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top"><Button Content="Save" IsEnabled="{x:Bind ViewModel.CanSave, Mode=OneWay}" Click="Save_Click"/><Button Content="Revert All" Click="RevertAll_Click"/><Button Content="Reset All to Auto" Click="ResetAll_Click"/><Button Content="Reload" Click="Reload_Click"/></StackPanel>
     </Grid>
-    <TextBlock Grid.Row="1" Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"/>
+    <TextBox x:Name="SettingSearchBox" Grid.Row="1" PlaceholderText="Search settings" TextChanged="SettingSearchBox_TextChanged" VerticalContentAlignment="Center"/>
     <ScrollViewer Grid.Row="2"><StackPanel x:Name="SettingsPanel" Spacing="4"/></ScrollViewer>
   </Grid>
 </Page>

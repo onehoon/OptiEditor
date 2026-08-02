@@ -66,7 +66,7 @@ public sealed partial class PresetsPage : Page
         PresetSectionsPanel.Children.Clear();
         var search = PresetSettingSearchBox.Text.Trim();
         var groups = _entryEditors
-            .Where(x => string.IsNullOrWhiteSpace(search) || x.Definition.GroupId.Contains(search, StringComparison.OrdinalIgnoreCase) || x.Definition.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase) || x.Definition.Id.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Where(x => string.IsNullOrWhiteSpace(search) || x.Definition.IniKey.Name.Contains(search, StringComparison.OrdinalIgnoreCase))
             .GroupBy(x => x.Definition.GroupId)
             .OrderBy(x => x.Min(y => y.Definition.Order));
 
@@ -84,8 +84,7 @@ public sealed partial class PresetsPage : Page
                 var check = new CheckBox { Content = label, IsChecked = entry.Included, VerticalAlignment = VerticalAlignment.Center };
                 check.Checked += (_, _) => entry.Included = true;
                 check.Unchecked += (_, _) => entry.Included = false;
-                var value = new TextBox { Text = entry.Value, PlaceholderText = entry.Definition.Description, VerticalContentAlignment = VerticalAlignment.Center };
-                value.TextChanged += (_, _) => entry.Value = value.Text;
+                var value = SettingValueControlFactory.Create(entry.Definition, entry.Value, changed => entry.Value = changed, entry.Definition.Description);
                 row.Children.Add(check); Grid.SetColumn(value, 1); row.Children.Add(value); rows.Children.Add(row);
             }
 
