@@ -115,14 +115,17 @@ public sealed partial class EditorPage : Page
         foreach (var (item, value) in _presetRestoreValues) { item.CurrentRawValue = value; ViewModel.Update(item); }
         var settingsById = ViewModel.Settings.ToDictionary(item => item.Binding.Definition.Id, StringComparer.OrdinalIgnoreCase);
         var skipped = 0;
+        var controlledItems = new HashSet<EditorSettingItemViewModel>();
         foreach (var preset in _selectedPresets)
             foreach (var entry in preset.Entries)
             {
                 if (!settingsById.TryGetValue(entry.SettingId, out var item)) { skipped++; continue; }
+                controlledItems.Add(item);
                 if (!_presetRestoreValues.ContainsKey(item)) _presetRestoreValues[item] = item.CurrentRawValue;
                 item.CurrentRawValue = entry.RawValue;
                 ViewModel.Update(item);
             }
+        foreach (var staleItem in _presetRestoreValues.Keys.Where(item => !controlledItems.Contains(item)).ToArray()) _presetRestoreValues.Remove(staleItem);
         UpdatePresetButtonStyles();
         RenderSettings();
         return skipped;
