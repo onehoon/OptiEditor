@@ -11,6 +11,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
 {
     private bool _changingBulk;
     private CancellationTokenSource? _operationCancellation;
+    private CancellationTokenSource? _scanCancellation;
     private readonly DispatcherQueue? _dispatcher = DispatcherQueue.GetForCurrentThread();
     public ObservableCollection<OptiScalerUpdateItemViewModel> Items { get; } = [];
     public IReadOnlyList<OptiScalerUpdateRow> UpdateRows { get; private set; } = [];
@@ -21,6 +22,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial bool IsAllSelected { get; set; }
     [ObservableProperty] public partial string SearchText { get; set; } = "";
     [ObservableProperty] public partial bool IsBusy { get; set; }
+    [ObservableProperty] public partial bool IsScanning { get; set; }
     [ObservableProperty] public partial string StatusText { get; set; } = "Scanning installed OptiScaler instances...";
     [ObservableProperty] public partial int ProgressCurrent { get; set; }
     [ObservableProperty] public partial int ProgressTotal { get; set; }
@@ -34,6 +36,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _operationCancellation?.Cancel();
+        _scanCancellation?.Cancel();
         AppServices.Installations.InstallationsChanged -= OnInstallationsChanged;
         foreach (var item in Items) item.PropertyChanged -= OnItemPropertyChanged;
     }
@@ -47,6 +50,9 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     public bool IsIndividualSelectionEnabled => !IsBulkMode && !IsBusy && !AppServices.Installations.IsScanning;
     public int SelectedCount => Items.Count(x => x.IsSelected);
     public bool CanReplace => Source is not null && !IsBusy && !AppServices.Installations.IsScanning && SelectedCount > 0;
+    public bool CanScan => !IsBusy && !IsScanning && !AppServices.Installations.IsScanning;
+    public bool IsWorking => IsBusy || IsScanning;
+    public bool CanCancel => IsWorking;
     public string SourceDetails => Source is null ? "No source file selected" : $"{Source.Path}\nFile version: {Source.FileVersion}\nProduct version: {Source.ProductVersion ?? "Not available"}";
     public bool HasSourceError => !string.IsNullOrWhiteSpace(SourceError);
     public bool HasStatusText => !string.IsNullOrWhiteSpace(StatusText);
@@ -60,7 +66,38 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
         StatusText = validation.IsValid ? "" : "Source selection failed.";
         OnPropertyChanged(nameof(CanReplace));
     }
+    public async Task ScanAsync()
+    {
+        if (!CanScan) return;
+        IsScanning = true;
+        StatusText = "Scanning installed OptiScaler instances...";
+        _scanCancellation = new CancellationTokenSource();
+        try
+        {
+            var result = await AppServices.Installations.ScanAllAsync(_scanCancellation.Token);
+            RefreshCatalog();
+            StatusText = $"Scan complete: {result.Summary.ValidInstallations} installation(s) found.";
+        }
+        catch (OperationCanceledException) { StatusText = "Scan cancelled."; }
+        catch (Exception ex) { AppServices.Logger.Error("Unexpected update scan error.", ex); StatusText = "Scan completed with an unexpected error. See logs for details."; }
+        finally
+        {
+            _scanCancellation?.Dispose(); _scanCancellation = null; IsScanning = false;
+            OnPropertiesChanged();
+        }
+    }
     partial void OnSourceChanged(SourceOptiScalerBinary? value) { OnPropertyChanged(nameof(SourceDetails)); OnPropertyChanged(nameof(CanReplace)); }
+    partial void OnIsBusyChanged(bool value) => NotifyWorkStateChanged();
+    partial void OnIsScanningChanged(bool value) => NotifyWorkStateChanged();
+
+    private void NotifyWorkStateChanged()
+    {
+        OnPropertyChanged(nameof(IsWorking));
+        OnPropertyChanged(nameof(CanCancel));
+        OnPropertyChanged(nameof(CanScan));
+        OnPropertyChanged(nameof(CanReplace));
+        OnPropertyChanged(nameof(IsIndividualSelectionEnabled));
+    }
     partial void OnSourceErrorChanged(string? value) => OnPropertyChanged(nameof(HasSourceError));
     partial void OnStatusTextChanged(string value) => OnPropertyChanged(nameof(HasStatusText));
 
@@ -145,6 +182,8 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     }
 
     public void Cancel() => _operationCancellation?.Cancel();
+    public void CancelScan() => _scanCancellation?.Cancel();
+    public void CancelCurrentOperation() { if (IsScanning) CancelScan(); else Cancel(); }
 
     // "Replacement completed." regardless of outcome hid full-failure and
     // full-cancellation results behind a success-sounding status message.
@@ -236,13 +275,14 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     }
     private void RefreshCatalog()
     {
+        IsScanning = AppServices.Installations.IsScanning;
         var existing = Items.ToDictionary(x => x.DirectoryIdentity, StringComparer.OrdinalIgnoreCase);
         foreach (var installation in AppServices.Installations.Installations)
         {
             if (existing.Remove(installation.InstallDirectory, out var item)) item.Update(installation); else AddItem(installation);
         }
         foreach (var obsolete in existing.Values) Items.Remove(obsolete);
-        if (AppServices.Installations.IsScanning) StatusText = "Scanning installed OptiScaler instances...";
+        if (IsScanning) StatusText = "Scanning installed OptiScaler instances...";
         ApplyBulkSelection(); OnPropertiesChanged();
     }
     private bool MatchesSearch(OptiScalerUpdateItemViewModel item)
@@ -270,7 +310,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     }
     private void OnPropertiesChanged()
     {
-        OnPropertyChanged(nameof(IsBulkMode)); OnPropertyChanged(nameof(IsIndividualSelectionEnabled)); OnPropertyChanged(nameof(SelectedCount)); OnPropertyChanged(nameof(CanReplace)); OnPropertyChanged(nameof(FilteredItems));
+        OnPropertyChanged(nameof(IsBulkMode)); OnPropertyChanged(nameof(IsIndividualSelectionEnabled)); OnPropertyChanged(nameof(SelectedCount)); OnPropertyChanged(nameof(CanReplace)); OnPropertyChanged(nameof(CanScan)); OnPropertyChanged(nameof(IsWorking)); OnPropertyChanged(nameof(CanCancel)); OnPropertyChanged(nameof(FilteredItems));
     }
 }
 

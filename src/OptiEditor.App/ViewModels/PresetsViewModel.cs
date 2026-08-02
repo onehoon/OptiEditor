@@ -25,12 +25,10 @@ public partial class PresetsViewModel : ObservableObject
     {
         try
         {
-            var user = await AppServices.Presets.LoadAsync();
+            var presets = await AppServices.LoadPresetsAsync();
             Presets.Clear();
-            var builtIns = AppServices.BuiltInPresets.GetAll();
-            var overriddenIds = user.Select(x => x.Id).ToHashSet();
-            foreach (var preset in builtIns.Where(x => !overriddenIds.Contains(x.Id)).Concat(user).OrderBy(x => x.Name)) Presets.Add(CreateCardItem(preset));
-            StatusText = Presets.Count == 0 ? "No user presets have been created." : $"{Presets.Count} presets available.";
+            foreach (var preset in presets.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)) Presets.Add(CreateCardItem(preset));
+            StatusText = Presets.Count == 0 ? "No presets are available." : $"{Presets.Count} presets available.";
             OnPropertyChanged(nameof(FilteredPresets));
         }
         catch (Exception ex) { AppServices.Logger.Error("Preset list could not be loaded.", ex); StatusText = "Presets could not be loaded. See logs for details."; }
@@ -39,7 +37,14 @@ public partial class PresetsViewModel : ObservableObject
     public async Task DeleteAsync(PresetDefinition preset)
     {
         if (preset.Source != PresetSource.User) return;
-        try { var users = (await AppServices.Presets.LoadAsync()).Where(x => x.Id != preset.Id).ToList(); await AppServices.Presets.SaveAsync(users); await LoadAsync(); }
+        try
+        {
+            var users = (await AppServices.Presets.LoadAsync()).Where(x => x.Id != preset.Id).ToList();
+            await AppServices.Presets.SaveAsync(users);
+            var matchingBuiltIn = AppServices.BuiltInPresets.GetAll().FirstOrDefault(x => x.Id == preset.Id || (x.Family == preset.Family && string.Equals(x.Name, preset.Name, StringComparison.OrdinalIgnoreCase)));
+            if (matchingBuiltIn is not null) await AppServices.MarkBuiltInPresetDeletedAsync(matchingBuiltIn.Id);
+            await LoadAsync();
+        }
         catch (Exception ex) { AppServices.Logger.Error("Preset could not be deleted.", ex); StatusText = "Preset could not be deleted safely. See logs for details."; }
     }
 

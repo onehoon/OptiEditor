@@ -14,6 +14,7 @@ public sealed class DiscoveryTests
     [Theory]
     [InlineData("EpicOnlineServicesInstaller.exe")]
     [InlineData("DLSSTweaksConfigTool.exe")]
+    [InlineData("DLSSTweaksConfig.exe")]
     [InlineData("VC_redist.x64.exe")]
     [InlineData("UnityCrashHandler64.exe")]
     [InlineData("CCrashReport.exe")]

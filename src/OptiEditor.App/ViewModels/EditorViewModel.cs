@@ -66,10 +66,10 @@ public partial class EditorViewModel : ObservableObject
     public void Update(EditorSettingItemViewModel item) { item.Update(); OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); }
     public void RevertAll() { foreach (var item in Settings) item.Revert(); StatusText = "Changes were reverted."; OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); }
     public void ResetAllManagedToAuto() { foreach (var item in Settings.Where(x => x.Binding.Definition.SupportsAuto)) { item.CurrentRawValue = "auto"; item.Update(); } StatusText = "Managed settings were reset to Auto. Select Save to update OptiScaler.ini."; OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(CanSave)); }
-    public async Task SaveAsync()
+    public async Task<bool> SaveAsync()
     {
-        if (_session is null) return;
-        if (!CanSave) { if (Settings.Any(x => x.HasBlockingValidationError)) StatusText = "Correct invalid setting values before saving."; return; }
+        if (_session is null) return false;
+        if (!CanSave) { if (Settings.Any(x => x.HasBlockingValidationError)) StatusText = "Correct invalid setting values before saving."; return false; }
         IsBusy = true;
         try
         {
@@ -78,13 +78,14 @@ public partial class EditorViewModel : ObservableObject
             // live session mutated; it stays reusable for retry or reload.
             var candidate = _session.Document.Clone();
             var failure = Settings.Where(x => x.IsModified).Select(item => candidate.ApplyPatch(item.Binding.ToPatch())).FirstOrDefault(x => x.Error is not null);
-            if (failure is not null) { StatusText = $"'{failure.Key.Section}.{failure.Key.Name}' could not be saved: {failure.Error}"; return; }
+            if (failure is not null) { StatusText = $"'{failure.Key.Section}.{failure.Key.Name}' could not be saved: {failure.Error}"; return false; }
             var result = await AppServices.IniFiles.SaveAsync(candidate, _session.Snapshot);
-            if (!result.Success) { StatusText = result.Error ?? "Settings could not be saved."; return; }
+            if (!result.Success) { StatusText = result.Error ?? "Settings could not be saved."; return false; }
             await LoadAsync(Installation!);
             StatusText = "OptiScaler settings were saved successfully.";
+            return true;
         }
-        catch (Exception ex) { AppServices.Logger.Error("Editor save failed.", ex); StatusText = "Settings could not be saved."; }
+        catch (Exception ex) { AppServices.Logger.Error("Editor save failed.", ex); StatusText = "Settings could not be saved."; return false; }
         finally { IsBusy = false; OnPropertyChanged(nameof(CanSave)); }
     }
 }

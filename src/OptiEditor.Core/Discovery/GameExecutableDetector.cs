@@ -9,6 +9,7 @@ public static class GameExecutableDetector
     {
         "EpicOnlineServicesInstaller.exe",
         "DLSSTweaksConfigTool.exe",
+        "DLSSTweaksConfig.exe",
         "VC_redist.x64.exe",
         "UnityCrashHandler64.exe",
         "CCrashReport.exe",
