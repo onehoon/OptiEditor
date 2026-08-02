@@ -90,14 +90,30 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
 
     // "Replacement completed." regardless of outcome hid full-failure and
     // full-cancellation results behind a success-sounding status message.
+    // Shared with the result dialog title so both agree on the outcome.
+    internal enum ReplacementOutcome { None, Completed, Canceled, Failed, PartiallyCompleted }
+
+    internal static ReplacementOutcome ClassifyOutcome(IReadOnlyList<OptiScalerReplacementResult> results)
+    {
+        if (results.Count == 0) return ReplacementOutcome.None;
+        var replaced = results.Count(x => x.Status == OptiScalerReplacementStatus.Replaced);
+        if (replaced == results.Count) return ReplacementOutcome.Completed;
+        if (replaced == 0 && results.All(x => x.Status == OptiScalerReplacementStatus.Canceled)) return ReplacementOutcome.Canceled;
+        if (replaced == 0) return ReplacementOutcome.Failed;
+        return ReplacementOutcome.PartiallyCompleted;
+    }
+
     internal static string DescribeOutcome(IReadOnlyList<OptiScalerReplacementResult> results)
     {
         if (results.Count == 0) return "No installations were replaced.";
         var replaced = results.Count(x => x.Status == OptiScalerReplacementStatus.Replaced);
-        if (replaced == results.Count) return $"Replacement completed. {replaced} of {results.Count} installation(s) were replaced.";
-        if (replaced == 0 && results.All(x => x.Status == OptiScalerReplacementStatus.Canceled)) return "Replacement was canceled. No installations were replaced.";
-        if (replaced == 0) return $"Replacement failed. 0 of {results.Count} installation(s) were replaced.";
-        return $"Replacement partially completed. {replaced} of {results.Count} installation(s) were replaced.";
+        return ClassifyOutcome(results) switch
+        {
+            ReplacementOutcome.Completed => $"Replacement completed. {replaced} of {results.Count} installation(s) were replaced.",
+            ReplacementOutcome.Canceled => "Replacement was canceled. No installations were replaced.",
+            ReplacementOutcome.Failed => $"Replacement failed. 0 of {results.Count} installation(s) were replaced.",
+            _ => $"Replacement partially completed. {replaced} of {results.Count} installation(s) were replaced.",
+        };
     }
 
     private async Task<OptiScalerReplacementPlan> BuildPlanAsync(CancellationToken token)

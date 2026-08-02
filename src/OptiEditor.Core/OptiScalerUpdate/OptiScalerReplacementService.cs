@@ -71,6 +71,22 @@ public sealed class OptiScalerReplacementService(IFileVersionInfoProvider versio
     {
         string? temporaryPath = null;
         string? rollbackPath = null;
+        var replaced = false;
+        var keepRollbackFile = false;
+
+        // Once the swap below has happened, ANY exit path other than a
+        // verified success (explicit mismatch or an exception thrown while
+        // reading the result) must try to restore the pre-replacement file
+        // before returning. A restore that fails must keep the rollback copy
+        // on disk instead of losing it in the finally cleanup below.
+        OptiScalerReplacementResult Recover(OptiScalerReplacementStatus status, OptiScalerReplacementReason reason, string message, Exception? exception = null)
+        {
+            if (!replaced || rollbackPath is null) return Result(target, status, reason, message, exception);
+            if (TryRestoreRollback(rollbackPath, target.OptiBinaryPath)) message += " The previous file was restored.";
+            else { keepRollbackFile = true; message += $" The previous file could not be restored; a copy was kept at: {rollbackPath}"; }
+            return Result(target, status, reason, message, exception);
+        }
+
         try
         {
             if (!File.Exists(target.OptiBinaryPath)) return Result(target, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.TargetMissing, "The installed OptiScaler binary is no longer available.");
@@ -85,16 +101,18 @@ public sealed class OptiScalerReplacementService(IFileVersionInfoProvider versio
                 return Result(target, OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.TemporaryValidationFailed, "The temporary OptiScaler file could not be verified.");
 
             // Keep a transient rollback copy of the pre-replacement file. It is
-            // deleted before returning either way, so this does not create the
-            // persistent backup the OptiScaler Update feature intentionally omits;
-            // it only lets a failed final verification restore the previous file
-            // instead of leaving the installation with an unverified binary.
+            // deleted before returning once it is no longer needed, so this does
+            // not create the persistent backup the OptiScaler Update feature
+            // intentionally omits; it only lets a failed final verification
+            // restore the previous file instead of leaving the installation
+            // with an unverified binary.
             cancellationToken.ThrowIfCancellationRequested();
             rollbackPath = UniqueRollbackPath(target.OptiBinaryPath);
             await CopyAndFlushAsync(target.OptiBinaryPath, rollbackPath, cancellationToken);
 
             ReplaceWithoutBackup(temporaryPath, target.OptiBinaryPath);
             temporaryPath = null;
+            replaced = true;
 
             // The swap itself cannot be canceled once started; verify it with
             // CancellationToken.None so a cancellation requested in this window
@@ -102,22 +120,20 @@ public sealed class OptiScalerReplacementService(IFileVersionInfoProvider versio
             // failure while leaving the new binary in place.
             var finalHash = File.Exists(target.OptiBinaryPath) ? await HashAsync(target.OptiBinaryPath, CancellationToken.None) : [];
             if (!File.Exists(target.OptiBinaryPath) || !CryptographicOperations.FixedTimeEquals(sourceHash, finalHash) || !OptiBinaryRules.IsOptiScaler(versionInfo.Read(target.OptiBinaryPath)))
-            {
-                var restored = TryRestoreRollback(rollbackPath, target.OptiBinaryPath);
-                return Result(target, OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.FinalVerificationFailed, restored ? "The final OptiScaler file could not be verified. The previous file was restored." : "The final OptiScaler file could not be verified, and the previous file could not be restored.");
-            }
+                return Recover(OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.FinalVerificationFailed, "The final OptiScaler file could not be verified.");
+
             var installed = versionInfo.Read(target.OptiBinaryPath).NumericVersion;
             logger.Info($"OptiScaler binary replaced: {target.OptiBinaryPath}");
             return new(target.InstallDirectory, target.GameDisplayName, target.OptiBinaryFileName, target.FileVersion, installed, OptiScalerReplacementStatus.Replaced, OptiScalerReplacementReason.None);
         }
-        catch (OperationCanceledException) { return Result(target, OptiScalerReplacementStatus.Canceled, OptiScalerReplacementReason.Canceled, "Replacement was canceled."); }
-        catch (UnauthorizedAccessException ex) { return Result(target, OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.AccessDenied, "Access to the target file was denied.", ex); }
-        catch (IOException ex) when (IsSharingViolation(ex)) { return Result(target, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.FileInUse, "The installed OptiScaler binary is currently in use.", ex); }
-        catch (Exception ex) { logger.Error($"OptiScaler replacement failed: {target.OptiBinaryPath}", ex); return Result(target, OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.UnexpectedFailure, "The target could not be replaced.", ex); }
+        catch (OperationCanceledException) { return Recover(OptiScalerReplacementStatus.Canceled, OptiScalerReplacementReason.Canceled, "Replacement was canceled."); }
+        catch (UnauthorizedAccessException ex) { return Recover(OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.AccessDenied, "Access to the target file was denied.", ex); }
+        catch (IOException ex) when (IsSharingViolation(ex)) { return Recover(OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.FileInUse, "The installed OptiScaler binary is currently in use.", ex); }
+        catch (Exception ex) { logger.Error($"OptiScaler replacement failed: {target.OptiBinaryPath}", ex); return Recover(OptiScalerReplacementStatus.Failed, OptiScalerReplacementReason.UnexpectedFailure, "The target could not be replaced.", ex); }
         finally
         {
             if (temporaryPath is not null) try { File.Delete(temporaryPath); } catch { }
-            if (rollbackPath is not null) try { File.Delete(rollbackPath); } catch { }
+            if (rollbackPath is not null && !keepRollbackFile) try { File.Delete(rollbackPath); } catch { }
         }
     }
 

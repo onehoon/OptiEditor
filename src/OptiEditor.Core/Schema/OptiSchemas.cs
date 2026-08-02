@@ -68,16 +68,18 @@ public static class SettingValidator
         return SettingValidationResult.Valid;
     }
 
-    // OptiScaler accepts hexadecimal flag/ID values (e.g. DLSSG.DispatchFlags = 0x14100000)
-    // for settings typed as Integer, alongside plain decimal values.
+    // OptiScaler accepts hexadecimal flag/ID values (e.g. DLSSG.DispatchFlags = 0x14100000,
+    // Spoofing.TargetVendorId = 0x10de) for settings typed as Integer, alongside plain
+    // decimal values. Every hex-accepting field in the upstream schema is an unsigned
+    // 32-bit flag mask or hardware ID, so hex literals are parsed as uint: this both
+    // matches their real range and avoids a signed hex literal (or one wider than 32
+    // bits) silently wrapping into an unrelated negative long via an unchecked cast.
     private static bool TryParseInteger(string raw, out long value)
     {
-        var negative = raw.StartsWith('-');
-        var unsigned = negative ? raw[1..] : raw;
-        if (unsigned.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        if (raw.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
         {
-            if (!ulong.TryParse(unsigned[2..], NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var hex)) { value = 0; return false; }
-            value = negative ? -(long)hex : (long)hex;
+            if (!uint.TryParse(raw[2..], NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var hex)) { value = 0; return false; }
+            value = hex;
             return true;
         }
         return long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);

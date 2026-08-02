@@ -24,18 +24,40 @@ public partial class FoldersViewModel : ObservableObject
     {
         var normalized = System.IO.Path.GetFullPath(path);
         if (Roots.Any(x => string.Equals(x.Path, normalized, StringComparison.OrdinalIgnoreCase))) return;
-        AddRoot(normalized, true); await SaveAsync();
+        var item = AddRoot(normalized, true);
+        if (!await TrySaveAsync()) Roots.Remove(item);
     }
-    public async Task RemoveAsync(ScanRootItemViewModel item) { Roots.Remove(item); await SaveAsync(); }
+    public async Task RemoveAsync(ScanRootItemViewModel item)
+    {
+        var index = Roots.IndexOf(item);
+        if (index < 0) return;
+        Roots.RemoveAt(index);
+        if (!await TrySaveAsync()) Roots.Insert(index, item);
+    }
     public Task SaveAsync() => AppServices.ScanRoots.SaveAsync(Roots.Select(x => x.ToModel()));
 
-    private void AddRoot(string path, bool isEnabled)
+    private async Task<bool> TrySaveAsync()
     {
+        try { await SaveAsync(); return true; }
+        catch (Exception ex) { AppServices.Logger.Error("Scan folder changes could not be saved.", ex); StatusText = "Folder changes could not be saved. See logs for details."; return false; }
+    }
+
+    private ScanRootItemViewModel AddRoot(string path, bool isEnabled)
+    {
+        var suppress = false;
         var item = new ScanRootItemViewModel(path, isEnabled);
-        item.PropertyChanged += async (_, args) =>
+        item.PropertyChanged += async (sender, args) =>
         {
-            if (args.PropertyName == nameof(ScanRootItemViewModel.IsEnabled)) await SaveAsync();
+            if (suppress || args.PropertyName != nameof(ScanRootItemViewModel.IsEnabled)) return;
+            var changed = (ScanRootItemViewModel)sender!;
+            var previous = !changed.IsEnabled;
+            if (await TrySaveAsync()) return;
+            // A failed save must not leave the toggle showing a state that
+            // was never persisted; revert it without re-triggering a save.
+            suppress = true;
+            try { changed.IsEnabled = previous; } finally { suppress = false; }
         };
         Roots.Add(item);
+        return item;
     }
 }

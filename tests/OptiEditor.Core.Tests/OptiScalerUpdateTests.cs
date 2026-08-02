@@ -71,6 +71,30 @@ public sealed class OptiScalerUpdateTests
     }
 
     [Fact]
+    public async Task Final_verification_exception_after_replace_still_restores_the_previous_target_file()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var source = Path.Combine(root, "source.bin"); var target = Path.Combine(root, "dxgi.dll");
+        var originalBytes = new byte[] { 4, 5, 6 };
+        await File.WriteAllBytesAsync(source, [1, 2, 3]); await File.WriteAllBytesAsync(target, originalBytes);
+        try
+        {
+            var provider = new ThrowingOnSecondReadVersionInfo(VersionData()) { TargetPath = target };
+            var validator = new OptiScalerSourceValidator(provider);
+            var sourceInfo = Assert.IsType<SourceOptiScalerBinary>(validator.Validate(source).Source);
+            var installation = new OptiInstallation { IniPath = Path.Combine(root, "OptiScaler.ini"), InstallDirectory = root, OptiBinaryPath = target, OptiBinaryFileName = "dxgi.dll", FileVersion = new Version(0, 9, 0, 1), SchemaFamily = OptiSchemaFamily.V09, GameDisplayName = "Game", ScannedAt = DateTimeOffset.UtcNow };
+            var service = new OptiScalerReplacementService(provider, validator, new NullLogger(), root);
+            var result = Assert.Single(await service.ReplaceAsync(new(sourceInfo, [new(installation)], [])));
+            Assert.Equal(OptiScalerReplacementStatus.Failed, result.Status);
+            Assert.Equal(OptiScalerReplacementReason.UnexpectedFailure, result.Reason);
+            Assert.Contains("restored", result.UserMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(originalBytes, await File.ReadAllBytesAsync(target));
+            Assert.Empty(Directory.EnumerateFiles(root, "*.optieditor.rollback*", SearchOption.AllDirectories));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public async Task Source_change_after_selection_aborts_before_any_target_is_modified()
     {
         var root = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
@@ -110,6 +134,17 @@ public sealed class OptiScalerUpdateTests
         {
             if (TargetPath is not null && string.Equals(path, TargetPath, StringComparison.OrdinalIgnoreCase) && ++_targetReads >= 2)
                 return good with { ProductName = "unrelated binary", InternalName = null, OriginalFilename = null, FileDescription = null };
+            return good;
+        }
+    }
+    private sealed class ThrowingOnSecondReadVersionInfo(FileVersionData good) : IFileVersionInfoProvider
+    {
+        private int _targetReads;
+        public string? TargetPath { get; init; }
+        public FileVersionData Read(string path)
+        {
+            if (TargetPath is not null && string.Equals(path, TargetPath, StringComparison.OrdinalIgnoreCase) && ++_targetReads >= 2)
+                throw new IOException("Simulated version read failure during final verification.");
             return good;
         }
     }

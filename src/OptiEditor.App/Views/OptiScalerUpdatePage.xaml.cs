@@ -23,7 +23,14 @@ public sealed partial class OptiScalerUpdatePage : Page
         var results = await ViewModel.ReplaceAsync();
         if (!_isActive) return;
         var replaced = results.Count(x => x.Status == OptiEditor.Core.OptiScalerUpdate.OptiScalerReplacementStatus.Replaced);
-        var title = results.Count == 0 ? "Nothing to replace" : replaced == results.Count ? "Replacement completed" : replaced == 0 ? "Replacement failed" : "Replacement partially completed";
+        var title = OptiScalerUpdateViewModel.ClassifyOutcome(results) switch
+        {
+            OptiScalerUpdateViewModel.ReplacementOutcome.None => "Nothing to replace",
+            OptiScalerUpdateViewModel.ReplacementOutcome.Completed => "Replacement completed",
+            OptiScalerUpdateViewModel.ReplacementOutcome.Canceled => "Replacement canceled",
+            OptiScalerUpdateViewModel.ReplacementOutcome.Failed => "Replacement failed",
+            _ => "Replacement partially completed",
+        };
         var summary = $"Selected: {results.Count}\nReplaced: {replaced}\nSkipped: {results.Count(x => x.Status == OptiEditor.Core.OptiScalerUpdate.OptiScalerReplacementStatus.Skipped)}\nFailed: {results.Count(x => x.Status == OptiEditor.Core.OptiScalerUpdate.OptiScalerReplacementStatus.Failed)}\nCanceled: {results.Count(x => x.Status == OptiEditor.Core.OptiScalerUpdate.OptiScalerReplacementStatus.Canceled)}\n\n" + string.Join("\n", results.Select(x => $"{x.GameDisplayName ?? x.InstallDirectory} — {x.TargetFileName}: {x.Status}{(x.UserMessage is null ? "" : $" — {x.UserMessage}")}"));
         await new ContentDialog { XamlRoot = XamlRoot, Title = title, Content = summary, CloseButtonText = "Close" }.ShowAsync();
     }

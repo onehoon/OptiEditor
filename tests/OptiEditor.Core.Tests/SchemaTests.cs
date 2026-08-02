@@ -120,8 +120,13 @@ public sealed class SchemaTests
         Assert.Equal(SettingValueKind.Integer, dispatchFlags.ValueKind);
         Assert.True(SettingValidator.Validate(dispatchFlags, "0x14100000").IsValid);
         Assert.True(SettingValidator.Validate(dispatchFlags, "0XABCD").IsValid);
-        Assert.True(SettingValidator.Validate(dispatchFlags, "-0x10").IsValid);
         Assert.True(SettingValidator.Validate(dispatchFlags, "336068608").IsValid);
+        Assert.True(SettingValidator.Validate(dispatchFlags, "-1").IsValid);
+        // Every hex-accepting Integer setting is an unsigned 32-bit flag/ID; a
+        // signed or wider-than-32-bit hex literal must be rejected rather than
+        // silently wrapping into an unrelated value.
+        Assert.False(SettingValidator.Validate(dispatchFlags, "-0x10").IsValid);
+        Assert.False(SettingValidator.Validate(dispatchFlags, "0xFFFFFFFFFFFFFFFF").IsValid);
         Assert.False(SettingValidator.Validate(dispatchFlags, "0xZZ").IsValid);
         Assert.False(SettingValidator.Validate(dispatchFlags, "not-a-number").IsValid);
     }

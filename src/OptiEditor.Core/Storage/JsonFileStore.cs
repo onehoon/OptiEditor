@@ -14,18 +14,27 @@ internal static class JsonFileStore
 
     public static async Task<T> LoadAsync<T>(string path, T fallback, IDiagnosticLogger? logger, CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(path)) return fallback;
+        // Shares SaveAsync's per-path gate so a load can never observe a file
+        // mid-write, and a corrupt read can never quarantine a file that a
+        // concurrent save just replaced with valid content.
+        var gate = Locks.GetOrAdd(path, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
         try
         {
-            await using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var value = await JsonSerializer.DeserializeAsync<T>(stream, cancellationToken: cancellationToken);
-            return value ?? fallback;
+            if (!File.Exists(path)) return fallback;
+            try
+            {
+                await using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                var value = await JsonSerializer.DeserializeAsync<T>(stream, cancellationToken: cancellationToken);
+                return value ?? fallback;
+            }
+            catch (JsonException ex)
+            {
+                MoveAside(path, ex, logger);
+                return fallback;
+            }
         }
-        catch (JsonException ex)
-        {
-            MoveAside(path, ex, logger);
-            return fallback;
-        }
+        finally { gate.Release(); }
     }
 
     public static async Task SaveAsync<T>(string path, T value, JsonSerializerOptions? options, CancellationToken cancellationToken = default)

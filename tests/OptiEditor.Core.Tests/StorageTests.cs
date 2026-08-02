@@ -62,6 +62,23 @@ public sealed class StorageTests
     }
 
     [Fact]
+    public async Task Startup_tab_store_load_and_save_do_not_race()
+    {
+        var folder = CreateFolder();
+        try
+        {
+            var path = Path.Combine(folder, "startup-tab.json");
+            await File.WriteAllTextAsync(path, "not json");
+            var store = new StartupTabStore(folder);
+            var loads = Enumerable.Range(0, 25).Select(_ => store.LoadAsync());
+            var saves = Enumerable.Range(0, 25).Select(_ => store.SaveAsync(StartupTabs.OptiScalerUpdate));
+            await Task.WhenAll(loads.Concat(saves));
+            Assert.Equal(StartupTabs.OptiScalerUpdate, await store.LoadAsync());
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    [Fact]
     public async Task Startup_tab_store_recovers_from_corrupt_json_instead_of_throwing()
     {
         var folder = CreateFolder();
