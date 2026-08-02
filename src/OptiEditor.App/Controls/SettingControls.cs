@@ -53,7 +53,7 @@ public sealed class CollapsibleSectionCard : Grid
         header.Click += (_, _) => IsExpanded = !IsExpanded;
         root.Children.Add(header);
 
-        _body = new StackPanel { Spacing = 8, Padding = new Thickness(14, 8, 14, 8), Visibility = Visibility.Collapsed };
+        _body = new StackPanel { Spacing = 8, Padding = new Thickness(14), Visibility = Visibility.Collapsed };
         _body.Children.Add(content);
         root.Children.Add(_body);
         Children.Add(new Border
