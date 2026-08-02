@@ -26,6 +26,12 @@ public sealed record OptiScalerPlanClassification(
 
 public sealed class OptiScalerReplacementService(IFileVersionInfoProvider versionInfo, OptiScalerSourceValidator sourceValidator, IDiagnosticLogger logger, string stagingRoot)
 {
+    // Lets a caller check a folder for multiple identified OptiScaler proxy
+    // DLLs before it has an OptiInstallation to classify — e.g. before the
+    // installation scanner has even run, since it excludes a folder with
+    // version-conflicting proxies entirely rather than reporting it.
+    public IReadOnlyList<string> DetectProxyBinaries(string directory) => OptiBinaryRules.FindProxyBinaries(directory, versionInfo);
+
     // Must run against freshly rescanned candidates, immediately before the
     // replacement plan is built, so both the proxy-DLL count and the version
     // family comparison reflect the current on-disk state rather than
@@ -131,6 +137,16 @@ public sealed class OptiScalerReplacementService(IFileVersionInfoProvider versio
             if (!File.Exists(target.OptiBinaryPath)) return Result(target, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.TargetMissing, "The installed OptiScaler binary is no longer available.");
             var currentMetadata = versionInfo.Read(target.OptiBinaryPath);
             if (!OptiBinaryRules.IsOptiScaler(currentMetadata)) return Result(target, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.TargetNotOptiScaler, "The target is no longer identified as an OptiScaler binary.");
+            // Re-check immediately before touching the file: classification ran
+            // once during preparation, but the user can spend arbitrary time on
+            // the confirmation dialogs in between, during which a second
+            // OptiScaler proxy could appear in this folder.
+            var proxies = OptiBinaryRules.FindProxyBinaries(target.InstallDirectory, versionInfo);
+            if (proxies.Count > 1)
+            {
+                var names = string.Join(", ", proxies);
+                return Result(target, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.MultipleOptiScalerBinaries, $"Multiple OptiScaler DLLs were detected: {names}. Remove the unnecessary DLLs manually and scan again.", detectedBinaryNames: proxies);
+            }
             using (File.Open(target.OptiBinaryPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
             temporaryPath = UniqueTemporaryPath(target.OptiBinaryPath);
             await CopyAndFlushAsync(stagedPath, temporaryPath, cancellationToken);
@@ -187,7 +203,7 @@ public sealed class OptiScalerReplacementService(IFileVersionInfoProvider versio
         catch (Exception ex) { logger.Error($"OptiScaler rollback failed after verification failure: {targetPath}", ex); return false; }
     }
     private static bool IsSharingViolation(IOException exception) => exception.HResult is unchecked((int)0x80070020) or unchecked((int)0x80070021);
-    private static OptiScalerReplacementResult Result(OptiInstallation target, OptiScalerReplacementStatus status, OptiScalerReplacementReason reason, string message, Exception? exception = null) => new(target.InstallDirectory, target.GameDisplayName, target.OptiBinaryFileName, target.FileVersion, null, status, reason, message, exception);
+    private static OptiScalerReplacementResult Result(OptiInstallation target, OptiScalerReplacementStatus status, OptiScalerReplacementReason reason, string message, Exception? exception = null, IReadOnlyList<string>? detectedBinaryNames = null) => new(target.InstallDirectory, target.GameDisplayName, target.OptiBinaryFileName, target.FileVersion, null, status, reason, message, exception, detectedBinaryNames);
     private static string UniqueTemporaryPath(string targetPath) { var candidate = targetPath + ".optieditor.tmp"; return File.Exists(candidate) ? candidate + "." + Guid.NewGuid().ToString("N") : candidate; }
     private static string UniqueRollbackPath(string targetPath) { var candidate = targetPath + ".optieditor.rollback"; return File.Exists(candidate) ? candidate + "." + Guid.NewGuid().ToString("N") : candidate; }
     private static async Task CopyAndFlushAsync(string source, string target, CancellationToken token) { await using var input = File.Open(source, FileMode.Open, FileAccess.Read, FileShare.Read); await using var output = File.Open(target, FileMode.CreateNew, FileAccess.Write, FileShare.None); await input.CopyToAsync(output, token); await output.FlushAsync(token); output.Flush(flushToDisk: true); }

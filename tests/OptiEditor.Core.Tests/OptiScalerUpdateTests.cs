@@ -254,6 +254,80 @@ public sealed class OptiScalerUpdateTests
         }
         finally { File.Delete(path); }
     }
+
+    [Theory]
+    [InlineData(0, 8)]
+    [InlineData(0, 11)]
+    [InlineData(1, 0)]
+    public void Source_validation_rejects_unsupported_version_families(int major, int minor)
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".bin"); File.WriteAllBytes(path, [1]);
+        try
+        {
+            var metadata = VersionData() with { FileMajorPart = major, FileMinorPart = minor, FileVersionText = $"{major}.{minor}.0.0" };
+            var result = new OptiScalerSourceValidator(new FixedVersionInfo(metadata)).Validate(path);
+            Assert.False(result.IsValid);
+            Assert.Contains("not supported", result.Error, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
+    [InlineData(0, 9)]
+    [InlineData(0, 10)]
+    public void Source_validation_accepts_supported_version_families(int major, int minor)
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".bin"); File.WriteAllBytes(path, [1]);
+        try
+        {
+            var metadata = VersionData() with { FileMajorPart = major, FileMinorPart = minor, FileVersionText = $"{major}.{minor}.0.0" };
+            Assert.True(new OptiScalerSourceValidator(new FixedVersionInfo(metadata)).Validate(path).IsValid);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void DetectProxyBinaries_delegates_to_the_shared_identification_logic()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        File.WriteAllBytes(Path.Combine(root, "dxgi.dll"), [1]);
+        File.WriteAllBytes(Path.Combine(root, "winmm.dll"), [2]);
+        try
+        {
+            var provider = new FixedVersionInfo(VersionData());
+            var service = new OptiScalerReplacementService(provider, new OptiScalerSourceValidator(provider), new NullLogger(), root);
+            Assert.Equal(["dxgi.dll", "winmm.dll"], service.DetectProxyBinaries(root));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task Replacement_skips_when_a_second_proxy_DLL_appears_before_the_swap()
+    {
+        // Simulates a target that was classified as single-proxy during
+        // PrepareReplacementAsync, but gained a second OptiScaler DLL while the
+        // user was still looking at the confirmation dialogs: ReplaceAsync
+        // itself must catch it, not just the earlier classification step.
+        var root = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var source = Path.Combine(root, "source.bin"); var target = Path.Combine(root, "dxgi.dll");
+        var originalBytes = new byte[] { 4, 5 };
+        await File.WriteAllBytesAsync(source, [1, 2, 3]); await File.WriteAllBytesAsync(target, originalBytes);
+        await File.WriteAllBytesAsync(Path.Combine(root, "winmm.dll"), [6]);
+        try
+        {
+            var provider = new FixedVersionInfo(VersionData());
+            var validator = new OptiScalerSourceValidator(provider);
+            var sourceInfo = Assert.IsType<SourceOptiScalerBinary>(validator.Validate(source).Source);
+            var installation = MakeInstallation(root, "dxgi.dll", OptiSchemaFamily.V10, "Game");
+            var service = new OptiScalerReplacementService(provider, validator, new NullLogger(), root);
+            var result = Assert.Single(await service.ReplaceAsync(new(sourceInfo, [new(installation)], [])));
+            Assert.Equal(OptiScalerReplacementStatus.Skipped, result.Status);
+            Assert.Equal(OptiScalerReplacementReason.MultipleOptiScalerBinaries, result.Reason);
+            Assert.Equal(["dxgi.dll", "winmm.dll"], result.DetectedBinaryNames);
+            Assert.Equal(originalBytes, await File.ReadAllBytesAsync(target));
+        }
+        finally { Directory.Delete(root, true); }
+    }
     private static FileVersionData VersionData() => new(0, 10, 1, 0, "0.10.1", "OptiScaler", "OptiScaler", "any.bin", "OptiScaler", "0.10.1.0");
     private static OptiInstallation MakeInstallation(string directory, string binaryFileName, OptiSchemaFamily family, string gameDisplayName) => new()
     {

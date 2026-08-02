@@ -40,7 +40,9 @@ public sealed partial class OptiScalerUpdatePage : Page
 
         var results = await ViewModel.ExecuteReplacementAsync(preparation.Plan);
         if (!_isActive) return;
-        await ShowResultDialogAsync(results, preparation.FamilyMismatchTargets.Count > 0);
+        var mismatchedDirectories = preparation.FamilyMismatchTargets.Select(x => x.Installation.InstallDirectory).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var crossedFamiliesSuccessfully = results.Any(x => x.Status == OptiScalerReplacementStatus.Replaced && mismatchedDirectories.Contains(x.InstallDirectory));
+        await ShowResultDialogAsync(results, crossedFamiliesSuccessfully);
     }
 
     private async Task ShowMultiProxyNoticeAsync(IReadOnlyList<OptiScalerReplacementResult> multiProxyTargets)
@@ -99,6 +101,11 @@ public sealed partial class OptiScalerUpdatePage : Page
             if (to09.Length > 0) lines.Add($"OptiScaler 0.10 → 0.9: {to09.Length}");
             if (to10.Length > 0) { lines.Add(""); lines.Add("0.9 → 0.10"); lines.AddRange(to10.Select(x => $"- {x.Installation.GameDisplayName}")); }
             if (to09.Length > 0) { lines.Add(""); lines.Add("0.10 → 0.9"); lines.AddRange(to09.Select(x => $"- {x.Installation.GameDisplayName}")); }
+            lines.Add("");
+            lines.Add("The existing OptiScaler.ini files will not be converted automatically.");
+            lines.Add("Some settings may be unsupported or behave differently after replacement.");
+            lines.Add("");
+            lines.Add("Continue with the replacement?");
             var dialog = new ContentDialog
             {
                 XamlRoot = XamlRoot,
@@ -112,7 +119,7 @@ public sealed partial class OptiScalerUpdatePage : Page
         }
     }
 
-    private async Task ShowResultDialogAsync(IReadOnlyList<OptiScalerReplacementResult> results, bool crossedFamilies)
+    private async Task ShowResultDialogAsync(IReadOnlyList<OptiScalerReplacementResult> results, bool crossedFamiliesSuccessfully)
     {
         var replaced = results.Count(x => x.Status == OptiScalerReplacementStatus.Replaced);
         var title = OptiScalerUpdateViewModel.ClassifyOutcome(results) switch
@@ -126,11 +133,16 @@ public sealed partial class OptiScalerUpdatePage : Page
         };
         var summary = $"Selected: {results.Count}\nReplaced: {replaced}\nSkipped: {results.Count(x => x.Status == OptiScalerReplacementStatus.Skipped)}\nFailed: {results.Count(x => x.Status == OptiScalerReplacementStatus.Failed)}\nCanceled: {results.Count(x => x.Status == OptiScalerReplacementStatus.Canceled)}\n\n"
             + string.Join("\n", results.Select(x => $"{x.GameDisplayName ?? x.InstallDirectory} — {x.TargetFileName}: {x.Status}{(x.UserMessage is null ? "" : $" — {x.UserMessage}")}"))
-            + (crossedFamilies && replaced > 0 ? "\n\nReview the OptiScaler settings after changing version families." : "");
+            + (crossedFamiliesSuccessfully ? "\n\nReview the OptiScaler settings after changing version families." : "");
         await new ContentDialog { XamlRoot = XamlRoot, Title = title, Content = summary, CloseButtonText = "Close" }.ShowAsync();
     }
 
-    private static string FamilyLabel(OptiSchemaFamily family) => family == OptiSchemaFamily.V09 ? "0.9" : "0.10";
+    private static string FamilyLabel(OptiSchemaFamily family) => family switch
+    {
+        OptiSchemaFamily.V09 => "0.9",
+        OptiSchemaFamily.V10 => "0.10",
+        _ => "Unsupported",
+    };
     private static void OpenFolder(string path) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", path) { UseShellExecute = true });
 
     private void Cancel_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) => ViewModel.Cancel();

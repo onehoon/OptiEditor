@@ -77,10 +77,34 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
         try
         {
             StatusText = "Preparing replacement...";
-            var plan = await BuildPlanAsync(_operationCancellation.Token);
+            var requested = (IsBulkMode ? AppServices.Installations.Installations.Select(x => x.InstallDirectory) : Items.Where(x => x.IsSelected).Select(x => x.DirectoryIdentity))
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+            // Check every requested folder for multiple identified OptiScaler
+            // proxy DLLs directly, before rescanning. The installation scanner
+            // treats differing proxy versions in the same folder as a conflict
+            // and excludes the installation entirely, which would otherwise
+            // hide a multi-DLL folder behind a generic "no longer valid"
+            // result instead of the specific manual-cleanup guidance.
+            var displayNameByDirectory = AppServices.Installations.Installations.ToDictionary(x => x.InstallDirectory, x => x.GameDisplayName, StringComparer.OrdinalIgnoreCase);
+            var multiProxyTargets = new List<OptiScalerReplacementResult>();
+            var singleProxyDirectories = new List<string>();
+            foreach (var directory in requested)
+            {
+                _operationCancellation.Token.ThrowIfCancellationRequested();
+                var detected = AppServices.OptiScalerReplacement.DetectProxyBinaries(directory);
+                if (detected.Count > 1)
+                {
+                    var names = string.Join(", ", detected);
+                    multiProxyTargets.Add(new(directory, displayNameByDirectory.GetValueOrDefault(directory), names, null, null, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.MultipleOptiScalerBinaries, $"Multiple OptiScaler DLLs were detected: {names}. Remove the unnecessary DLLs manually and scan again.", DetectedBinaryNames: detected));
+                }
+                else singleProxyDirectories.Add(directory);
+            }
+
+            var plan = await BuildPlanAsync(singleProxyDirectories, _operationCancellation.Token);
             var classification = await AppServices.OptiScalerReplacement.ClassifyTargetsAsync(Source, plan.Targets.Select(x => x.Installation).ToArray(), _operationCancellation.Token);
-            var finalPlan = new OptiScalerReplacementPlan(Source, classification.ReadyTargets, [.. plan.SkippedTargets, .. classification.MultiProxyTargets]);
-            return new(finalPlan, classification.MultiProxyTargets, classification.FamilyMismatchTargets);
+            var finalPlan = new OptiScalerReplacementPlan(Source, classification.ReadyTargets, [.. plan.SkippedTargets, .. classification.MultiProxyTargets, .. multiProxyTargets]);
+            return new(finalPlan, [.. multiProxyTargets, .. classification.MultiProxyTargets], classification.FamilyMismatchTargets);
         }
         catch (OperationCanceledException) { StatusText = "Replacement canceled."; AbortPreparedReplacement(); return null; }
         catch (Exception ex) { AppServices.Logger.Error("OptiScaler replacement preparation failed.", ex); SourceError = ex.Message; StatusText = "Replacement could not start."; AbortPreparedReplacement(); return null; }
@@ -153,10 +177,8 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
         };
     }
 
-    private async Task<OptiScalerReplacementPlan> BuildPlanAsync(CancellationToken token)
+    private async Task<OptiScalerReplacementPlan> BuildPlanAsync(IReadOnlyList<string> requested, CancellationToken token)
     {
-        var selectedDirectories = IsBulkMode ? AppServices.Installations.Installations.Select(x => x.InstallDirectory) : Items.Where(x => x.IsSelected).Select(x => x.DirectoryIdentity);
-        var requested = selectedDirectories.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var refreshed = await AppServices.Installations.RescanDirectoriesAsync(requested, token);
         var valid = refreshed.Where(x => IsAllSelected || (IsV09Selected && x.SchemaFamily == OptiSchemaFamily.V09) || (IsV10Selected && x.SchemaFamily == OptiSchemaFamily.V10) || !IsBulkMode).ToArray();
         var missing = requested.Where(directory => !refreshed.Any(x => string.Equals(x.InstallDirectory, directory, StringComparison.OrdinalIgnoreCase)))
