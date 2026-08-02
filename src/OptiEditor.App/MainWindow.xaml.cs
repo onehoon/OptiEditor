@@ -72,6 +72,8 @@ public sealed partial class MainWindow : Window
             "Games" => typeof(GamesPage), "Folders" => typeof(FoldersPage), "OptiScalerUpdate" => typeof(OptiScalerUpdatePage),
             "Presets" => typeof(PresetsPage), "Settings" => typeof(SettingsPage), _ => typeof(PlaceholderPage)
         }, item.Tag);
+        RootFrame.BackStack.Clear();
+        UpdateBackButtonVisibility();
     }
 
     private void Navigation_BackRequested(NavigationView sender, NavigationViewBackRequestedEventArgs args)
@@ -80,6 +82,11 @@ public sealed partial class MainWindow : Window
     }
 
     private void RootFrame_Navigated(object sender, NavigationEventArgs e)
+    {
+        UpdateBackButtonVisibility();
+    }
+
+    private void UpdateBackButtonVisibility()
     {
         Navigation.IsBackButtonVisible = RootFrame.CanGoBack
             ? NavigationViewBackButtonVisible.Visible
