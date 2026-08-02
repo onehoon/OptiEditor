@@ -20,12 +20,12 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Spacing="2">
                         <TextBlock
-                            Text="{x:Bind Installation.GameDisplayName}"
+                            Text="{x:Bind GameDisplayName}"
                             Style="{StaticResource SubtitleTextBlockStyle}"
                             MaxLines="1"
                             TextTrimming="CharacterEllipsis"/>
                         <TextBlock
-                            Text="{x:Bind Installation.GameExeName}"
+                            Text="{x:Bind GameExeName}"
                             MaxLines="1"
                             TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
