@@ -79,7 +79,9 @@ public sealed partial class EditorPage : Page
     {
         PresetButtonsPanel.Children.Clear();
         if (ViewModel.Installation is null) { PresetButtonsPanel.Visibility = Visibility.Collapsed; return; }
-        var presets = AppServices.BuiltInPresets.GetAll().Concat(await AppServices.Presets.LoadAsync())
+        var userPresets = await AppServices.Presets.LoadAsync();
+        var overriddenIds = userPresets.Select(x => x.Id).ToHashSet();
+        var presets = AppServices.BuiltInPresets.GetAll().Where(x => !overriddenIds.Contains(x.Id)).Concat(userPresets)
             .Where(preset => preset.Family == ViewModel.Installation.SchemaFamily)
             .OrderBy(preset => preset.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
