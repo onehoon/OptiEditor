@@ -39,7 +39,7 @@ public partial class PresetsViewModel : ObservableObject
     public async Task DeleteAsync(PresetDefinition preset)
     {
         if (preset.Source != PresetSource.User) return;
-        try { var users = (await AppServices.Presets.LoadAsync()).Where(x => x.Id != preset.Id).ToList(); await AppServices.Presets.SaveAsync(users); await LoadAsync(); }
+        try { var users = (await AppServices.Presets.LoadAsync()).Where(x => x.Id != preset.Id).ToList(); await AppServices.Presets.SaveAsync(users); if (AppServices.BuiltInPresets.GetAll().Any(x => x.Id == preset.Id)) await AppServices.MarkBuiltInPresetDeletedAsync(preset.Id); await LoadAsync(); }
         catch (Exception ex) { AppServices.Logger.Error("Preset could not be deleted.", ex); StatusText = "Preset could not be deleted safely. See logs for details."; }
     }
 

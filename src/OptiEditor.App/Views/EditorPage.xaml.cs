@@ -35,12 +35,16 @@ public sealed partial class EditorPage : Page
     {
         if (!ViewModel.CanSave) return;
         var changes = BuildSaveReviewLines();
-        if (await SaveReviewDialog.ConfirmAsync(XamlRoot, "Review changes", "The following values will be written to OptiScaler.ini.", changes))
+            if (await SaveReviewDialog.ConfirmAsync(XamlRoot, "Review changes", "The following values will be written to OptiScaler.ini.", changes))
         {
+            var appliedLines = ViewModel.Settings
+                .Where(x => x.IsModified)
+                .Select(x => $"[{x.Binding.Definition.IniKey.Section}] {x.Binding.Definition.IniKey.Name} = {x.CurrentRawValue}")
+                .ToArray();
             if (await ViewModel.SaveAsync())
             {
                 if (!ViewModel.IsDirty) ClearPresetSelection();
-                var applied = new TextBox { Text = string.Join(Environment.NewLine, changes), IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinWidth = 520, MinHeight = 120, MaxHeight = 420 };
+                var applied = new TextBox { Text = string.Join(Environment.NewLine, appliedLines), IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinWidth = 520, MinHeight = 120, MaxHeight = 420 };
                 await new ContentDialog
                 {
                     XamlRoot = XamlRoot,

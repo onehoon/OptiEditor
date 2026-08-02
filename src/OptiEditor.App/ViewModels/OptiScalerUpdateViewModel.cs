@@ -51,6 +51,8 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     public int SelectedCount => Items.Count(x => x.IsSelected);
     public bool CanReplace => Source is not null && !IsBusy && !AppServices.Installations.IsScanning && SelectedCount > 0;
     public bool CanScan => !IsBusy && !IsScanning && !AppServices.Installations.IsScanning;
+    public bool IsWorking => IsBusy || IsScanning;
+    public bool CanCancel => IsWorking;
     public string SourceDetails => Source is null ? "No source file selected" : $"{Source.Path}\nFile version: {Source.FileVersion}\nProduct version: {Source.ProductVersion ?? "Not available"}";
     public bool HasSourceError => !string.IsNullOrWhiteSpace(SourceError);
     public bool HasStatusText => !string.IsNullOrWhiteSpace(StatusText);
@@ -171,6 +173,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
 
     public void Cancel() => _operationCancellation?.Cancel();
     public void CancelScan() => _scanCancellation?.Cancel();
+    public void CancelCurrentOperation() { if (IsScanning) CancelScan(); else Cancel(); }
 
     // "Replacement completed." regardless of outcome hid full-failure and
     // full-cancellation results behind a success-sounding status message.
@@ -297,7 +300,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     }
     private void OnPropertiesChanged()
     {
-        OnPropertyChanged(nameof(IsBulkMode)); OnPropertyChanged(nameof(IsIndividualSelectionEnabled)); OnPropertyChanged(nameof(SelectedCount)); OnPropertyChanged(nameof(CanReplace)); OnPropertyChanged(nameof(CanScan)); OnPropertyChanged(nameof(FilteredItems));
+        OnPropertyChanged(nameof(IsBulkMode)); OnPropertyChanged(nameof(IsIndividualSelectionEnabled)); OnPropertyChanged(nameof(SelectedCount)); OnPropertyChanged(nameof(CanReplace)); OnPropertyChanged(nameof(CanScan)); OnPropertyChanged(nameof(IsWorking)); OnPropertyChanged(nameof(CanCancel)); OnPropertyChanged(nameof(FilteredItems));
     }
 }
 
