@@ -37,8 +37,19 @@ public sealed partial class EditorPage : Page
         var changes = BuildSaveReviewLines();
         if (await SaveReviewDialog.ConfirmAsync(XamlRoot, "Review changes", "The following values will be written to OptiScaler.ini.", changes))
         {
-            await ViewModel.SaveAsync();
-            if (!ViewModel.IsDirty) ClearPresetSelection();
+            if (await ViewModel.SaveAsync())
+            {
+                if (!ViewModel.IsDirty) ClearPresetSelection();
+                var applied = new TextBox { Text = string.Join(Environment.NewLine, changes), IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinWidth = 520, MinHeight = 120, MaxHeight = 420 };
+                await new ContentDialog
+                {
+                    XamlRoot = XamlRoot,
+                    Title = "Settings applied",
+                    Content = new ScrollViewer { Content = applied, MaxHeight = 420 },
+                    CloseButtonText = "OK",
+                    DefaultButton = ContentDialogButton.Close
+                }.ShowAsync();
+            }
         }
     }
 
@@ -79,9 +90,7 @@ public sealed partial class EditorPage : Page
     {
         PresetButtonsPanel.Children.Clear();
         if (ViewModel.Installation is null) { PresetButtonsPanel.Visibility = Visibility.Collapsed; return; }
-        var userPresets = await AppServices.Presets.LoadAsync();
-        var overriddenIds = userPresets.Select(x => x.Id).ToHashSet();
-        var presets = AppServices.BuiltInPresets.GetAll().Where(x => !overriddenIds.Contains(x.Id)).Concat(userPresets)
+        var presets = (await AppServices.LoadPresetsAsync())
             .Where(preset => preset.Family == ViewModel.Installation.SchemaFamily)
             .OrderBy(preset => preset.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();

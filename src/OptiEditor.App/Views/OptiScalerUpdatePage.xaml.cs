@@ -20,6 +20,8 @@ public sealed partial class OptiScalerUpdatePage : Page
         var file = await picker.PickSingleFileAsync(); if (file is not null) ViewModel.SelectSource(file.Path);
     }
 
+    private async void Scan_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) => await ViewModel.ScanAsync();
+
     private async void ReplaceSelected_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
     {
         var confirmation = new ContentDialog { XamlRoot = XamlRoot, Title = "Replace OptiScaler binaries?", Content = $"The existing OptiScaler binary will be overwritten for {ViewModel.SelectedCount} installations.\n\nNo backup will be created.\n\nSource version: {ViewModel.Source?.FileVersion}", PrimaryButtonText = "Replace", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };

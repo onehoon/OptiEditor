@@ -25,7 +25,7 @@ public partial class PresetsViewModel : ObservableObject
     {
         try
         {
-            var user = await AppServices.Presets.LoadAsync();
+            var user = await AppServices.LoadPresetsAsync();
             Presets.Clear();
             var builtIns = AppServices.BuiltInPresets.GetAll();
             var overriddenIds = user.Select(x => x.Id).ToHashSet();

@@ -22,6 +22,19 @@ public static class AppServices
     public static ISourceCommentVisibilityStore SourceComments { get; } = new SourceCommentVisibilityStore(AppData, Logger);
     public static IUserPresetStore Presets { get; } = new UserPresetStore(AppData, Logger);
     public static IBuiltInPresetProvider BuiltInPresets { get; } = new BuiltInPresetProvider();
+    public static async Task<IReadOnlyList<PresetDefinition>> LoadPresetsAsync()
+    {
+        var user = (await Presets.LoadAsync()).ToList();
+        var changed = false;
+        foreach (var builtIn in BuiltInPresets.GetAll())
+        {
+            if (user.Any(x => x.Id == builtIn.Id)) continue;
+            user.Add(builtIn with { Source = PresetSource.User });
+            changed = true;
+        }
+        if (changed) await Presets.SaveAsync(user);
+        return user;
+    }
     public static OptiScalerSourceValidator OptiScalerSourceValidator { get; } = new(new SystemFileVersionInfoProvider());
     public static OptiScalerReplacementService OptiScalerReplacement { get; } = new(new SystemFileVersionInfoProvider(), OptiScalerSourceValidator, Logger, AppData);
 }

@@ -178,10 +178,16 @@ public sealed partial class PresetsPage : Page
         var schema = AppServices.Schemas.Resolve(_editingFamily);
         var previous = _editingPreset?.Entries.ToDictionary(x => x.SettingId, x => x.RawValue, StringComparer.OrdinalIgnoreCase) ?? [];
         var current = preset.Entries.ToDictionary(x => x.SettingId, x => x.RawValue, StringComparer.OrdinalIgnoreCase);
-        var settingIds = previous.Keys.Union(current.Keys, StringComparer.OrdinalIgnoreCase)
-            .Where(id => !previous.TryGetValue(id, out var before) || !current.TryGetValue(id, out var after) || !string.Equals(before, after, StringComparison.Ordinal))
+        // The review must describe the complete preset that will be saved,
+        // not only entries whose value differs from the previous version.
+        // Otherwise unchanged entries (for example FGInput/FGOutput) are
+        // persisted successfully but appear to be missing from the review.
+        var settingIds = current.Keys
             .OrderBy(id => schema.FindById(id)?.Order ?? int.MaxValue)
-            .ThenBy(id => id, StringComparer.OrdinalIgnoreCase);
+            .ThenBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .Concat(previous.Keys.Except(current.Keys, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(id => schema.FindById(id)?.Order ?? int.MaxValue)
+                .ThenBy(id => id, StringComparer.OrdinalIgnoreCase));
 
         return settingIds.Select(id =>
         {
