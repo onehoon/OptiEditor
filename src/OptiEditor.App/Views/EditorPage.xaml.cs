@@ -6,6 +6,7 @@ using OptiEditor.App.Services;
 using OptiEditor.App.ViewModels;
 using OptiEditor.Core.Models;
 using OptiEditor.Core.Presets;
+using OptiEditor.Core.Schema;
 
 namespace OptiEditor.App.Views;
 
@@ -93,19 +94,31 @@ public sealed partial class EditorPage : Page
     private async Task RenderPresetButtonsAsync()
     {
         PresetButtonsPanel.Children.Clear();
-        if (ViewModel.Installation is null) { PresetButtonsPanel.Visibility = Visibility.Collapsed; return; }
+        if (ViewModel.Installation is null) { PresetsCard.Visibility = Visibility.Collapsed; return; }
         var presets = (await AppServices.LoadPresetsAsync())
             .Where(preset => preset.Family == ViewModel.Installation.SchemaFamily)
             .OrderBy(preset => preset.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        var schema = AppServices.Schemas.Resolve(ViewModel.Installation.SchemaFamily);
         foreach (var preset in presets)
         {
             var button = new Button { Content = preset.Name, Tag = preset };
             button.Click += PresetButton_Click;
+            ToolTipService.SetToolTip(button, BuildPresetTooltip(preset, schema));
             PresetButtonsPanel.Children.Add(button);
         }
         UpdatePresetButtonStyles();
-        PresetButtonsPanel.Visibility = presets.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        PresetsCard.Visibility = presets.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private static TextBlock BuildPresetTooltip(PresetDefinition preset, IOptiSchemaProvider schema)
+    {
+        var lines = preset.Entries
+            .OrderBy(entry => schema.FindById(entry.SettingId)?.Order ?? int.MaxValue)
+            .ThenBy(entry => entry.SettingId, StringComparer.OrdinalIgnoreCase)
+            .Select(entry => schema.FindById(entry.SettingId) is { } definition ? $"[{definition.IniKey.Section}] {definition.IniKey.Name} = {entry.RawValue}" : $"[Unknown] {entry.SettingId} = {entry.RawValue}");
+        var text = string.IsNullOrWhiteSpace(preset.Description) ? string.Join("\n", lines) : preset.Description + "\n\n" + string.Join("\n", lines);
+        return new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, MaxWidth = 360 };
     }
 
     private void PresetButton_Click(object sender, RoutedEventArgs e)
