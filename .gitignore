@@ -32,6 +32,7 @@ BundleArtifacts/
 PublishOutput/
 publish/
 publish-test/
+publish-selfcontained/
 Releases/
 velopack-test-releases/
 *.msix
