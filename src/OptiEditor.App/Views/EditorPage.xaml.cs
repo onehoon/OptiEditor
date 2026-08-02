@@ -34,12 +34,36 @@ public sealed partial class EditorPage : Page
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
         if (!ViewModel.CanSave) return;
-        var changes = ViewModel.Settings.Where(item => item.IsModified).Select(item => $"[{item.Binding.Definition.IniKey.Section}] {item.Binding.Definition.IniKey.Name} = {item.CurrentRawValue}");
+        var changes = BuildSaveReviewLines();
         if (await SaveReviewDialog.ConfirmAsync(XamlRoot, "Review changes", "The following values will be written to OptiScaler.ini.", changes))
         {
             await ViewModel.SaveAsync();
             if (!ViewModel.IsDirty) ClearPresetSelection();
         }
+    }
+
+    private IReadOnlyList<string> BuildSaveReviewLines()
+    {
+        var settings = ViewModel.Settings.ToDictionary(x => x.Binding.Definition.Id, StringComparer.OrdinalIgnoreCase);
+        var presetValues = new Dictionary<string, (string Key, string Section, string Value)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var preset in _selectedPresets)
+            foreach (var entry in preset.Entries)
+                if (settings.TryGetValue(entry.SettingId, out var item))
+                    presetValues[entry.SettingId] = (item.Binding.Definition.IniKey.Name, item.Binding.Definition.IniKey.Section, entry.RawValue);
+
+        var lines = new List<string>();
+        foreach (var pair in presetValues)
+        {
+            var item = settings[pair.Key];
+            var status = string.Equals(item.CurrentRawValue, pair.Value.Value, StringComparison.Ordinal) ? "already applied" : "will change";
+            lines.Add($"[{pair.Value.Section}] {pair.Value.Key} = {pair.Value.Value} ({status})");
+        }
+
+        var presetIds = presetValues.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        lines.AddRange(ViewModel.Settings
+            .Where(item => item.IsModified && !presetIds.Contains(item.Binding.Definition.Id))
+            .Select(item => $"[{item.Binding.Definition.IniKey.Section}] {item.Binding.Definition.IniKey.Name} = {item.CurrentRawValue} (will change)"));
+        return lines;
     }
 
     private void RevertAll_Click(object sender, RoutedEventArgs e) { ViewModel.RevertAll(); ClearPresetSelection(); RenderSettings(); }
