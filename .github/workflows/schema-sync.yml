@@ -1,0 +1,48 @@
+name: Check OptiScaler Schema
+
+on:
+  schedule:
+    # 03:00 Asia/Seoul (18:00 UTC on the previous day)
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: optiscaler-schema-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regenerate schema from upstream source
+        shell: pwsh
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sync-OptiScalerSchema.ps1
+      - name: Open or update an issue when upstream changed
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          $changed = git status --porcelain -- src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs
+          if (-not $changed) {
+            Write-Host "Upstream schema is unchanged."
+            exit 0
+          }
+
+          $title = "[Schema Sync] OptiScaler upstream schema changed"
+          $body = @"
+          The daily schema check detected a change in OptiScaler's `release/0.9` or `master` source.
+
+          Review the generated diff, validate it locally, then commit the refreshed catalog deliberately. Release CI does not automatically consume upstream changes.
+          "@
+          $existing = gh issue list --repo $env:REPOSITORY --state open --search "$title in:title" --json number --jq '.[0].number'
+          if ($existing) {
+            gh issue comment $existing --repo $env:REPOSITORY --body $body
+          } else {
+            gh issue create --repo $env:REPOSITORY --title $title --body $body
+          }
