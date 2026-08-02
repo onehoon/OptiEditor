@@ -1,7 +1,27 @@
 <Page x:Class="OptiEditor.App.Views.FoldersPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:OptiEditor.App.ViewModels">
-  <Grid Padding="24" RowSpacing="16"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-    <TextBlock Text="Folders" Style="{StaticResource TitleTextBlockStyle}"/>
-    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12"><Button Content="Add Folder" Click="AddFolder_Click"/><Button Content="Remove" Click="RemoveSelected_Click"/><Button Content="Save Changes" Click="Save_Click"/><Button Content="Scan Now" Click="ScanNow_Click"/><TextBlock Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" VerticalAlignment="Center"/></StackPanel>
-    <ListView x:Name="RootsList" Grid.Row="2" ItemsSource="{x:Bind ViewModel.Roots, Mode=OneWay}" SelectionMode="Single"><ListView.ItemTemplate><DataTemplate x:DataType="vm:ScanRootItemViewModel"><Grid Padding="8" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><CheckBox IsChecked="{x:Bind IsEnabled, Mode=TwoWay}"/><TextBlock Grid.Column="1" Text="{x:Bind Path}" VerticalAlignment="Center" TextWrapping="Wrap"/><Button Grid.Column="2" Content="Remove" Click="Remove_Click" Tag="{x:Bind}"/></Grid></DataTemplate></ListView.ItemTemplate></ListView>
+  <Grid Padding="24" RowSpacing="12">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <Grid ColumnSpacing="12">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <StackPanel Spacing="2" VerticalAlignment="Center">
+        <TextBlock Text="Folders" Style="{StaticResource TitleTextBlockStyle}"/>
+        <TextBlock Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" TextWrapping="Wrap"/>
+      </StackPanel>
+      <Button Grid.Column="1" Content="Add Folder..." Click="AddFolder_Click" VerticalAlignment="Center"/>
+    </Grid>
+    <ScrollViewer Grid.Row="1" Style="{StaticResource PageScrollViewerStyle}">
+      <ItemsControl ItemsSource="{x:Bind ViewModel.Roots, Mode=OneWay}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ScanRootItemViewModel">
+            <Grid Margin="0,4" ColumnSpacing="12">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <CheckBox IsChecked="{x:Bind IsEnabled, Mode=TwoWay}" VerticalAlignment="Center"/>
+              <TextBlock Grid.Column="1" Text="{x:Bind Path}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+              <Button Grid.Column="2" Content="Remove" Click="Remove_Click" Tag="{x:Bind}"/>
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
   </Grid>
 </Page>

@@ -18,14 +18,24 @@ public partial class FoldersViewModel : ObservableObject
     [ObservableProperty] public partial string StatusText { get; set; } = "Manage folders that OptiEditor scans.";
     public async Task LoadAsync()
     {
-        Roots.Clear(); foreach (var root in await AppServices.ScanRoots.LoadAsync()) Roots.Add(new(root.Path, root.IsEnabled));
+        Roots.Clear(); foreach (var root in await AppServices.ScanRoots.LoadAsync()) AddRoot(root.Path, root.IsEnabled);
     }
     public async Task AddAsync(string path)
     {
         var normalized = System.IO.Path.GetFullPath(path);
         if (Roots.Any(x => string.Equals(x.Path, normalized, StringComparison.OrdinalIgnoreCase))) return;
-        Roots.Add(new(normalized, true)); await SaveAsync();
+        AddRoot(normalized, true); await SaveAsync();
     }
     public async Task RemoveAsync(ScanRootItemViewModel item) { Roots.Remove(item); await SaveAsync(); }
     public Task SaveAsync() => AppServices.ScanRoots.SaveAsync(Roots.Select(x => x.ToModel()));
+
+    private void AddRoot(string path, bool isEnabled)
+    {
+        var item = new ScanRootItemViewModel(path, isEnabled);
+        item.PropertyChanged += async (_, args) =>
+        {
+            if (args.PropertyName == nameof(ScanRootItemViewModel.IsEnabled)) await SaveAsync();
+        };
+        Roots.Add(item);
+    }
 }

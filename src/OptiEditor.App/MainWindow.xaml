@@ -17,7 +17,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <TitleBar x:Name="AppTitleBar" Title="OptiEditor" />
-        <NavigationView x:Name="Navigation" Grid.Row="1" PaneDisplayMode="Left" IsBackButtonVisible="Collapsed" IsSettingsVisible="False" Loaded="Navigation_Loaded" SelectionChanged="Navigation_SelectionChanged">
+        <NavigationView x:Name="Navigation" Grid.Row="1" PaneDisplayMode="Left" OpenPaneLength="240" IsBackButtonVisible="Collapsed" IsSettingsVisible="False" Loaded="Navigation_Loaded" SelectionChanged="Navigation_SelectionChanged">
             <NavigationView.MenuItems>
                 <NavigationViewItem Tag="Games" IsSelected="True"><NavigationViewItem.Icon><SymbolIcon Symbol="Library" /></NavigationViewItem.Icon><TextBlock Text="Games" VerticalAlignment="Center" TextLineBounds="TrimToCapHeight" /></NavigationViewItem>
                 <NavigationViewItem Tag="Presets"><NavigationViewItem.Icon><SymbolIcon Symbol="Favorite" /></NavigationViewItem.Icon><TextBlock Text="Presets" VerticalAlignment="Center" TextLineBounds="TrimToCapHeight" /></NavigationViewItem>

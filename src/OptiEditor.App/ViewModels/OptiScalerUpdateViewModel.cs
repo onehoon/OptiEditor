@@ -13,6 +13,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _operationCancellation;
     private readonly DispatcherQueue? _dispatcher = DispatcherQueue.GetForCurrentThread();
     public ObservableCollection<OptiScalerUpdateItemViewModel> Items { get; } = [];
+    public IReadOnlyList<OptiScalerUpdateRow> UpdateRows { get; private set; } = [];
     [ObservableProperty] public partial SourceOptiScalerBinary? Source { get; set; }
     [ObservableProperty] public partial string? SourceError { get; set; }
     [ObservableProperty] public partial bool IsV09Selected { get; set; }
@@ -102,7 +103,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     }
     partial void OnIsV09SelectedChanged(bool value) { if (!_changingBulk && value && IsAllSelected) { _changingBulk = true; IsAllSelected = false; _changingBulk = false; } ApplyBulkSelection(); }
     partial void OnIsV10SelectedChanged(bool value) { if (!_changingBulk && value && IsAllSelected) { _changingBulk = true; IsAllSelected = false; _changingBulk = false; } ApplyBulkSelection(); }
-    partial void OnSearchTextChanged(string value) => OnPropertyChanged(nameof(FilteredItems));
+    partial void OnSearchTextChanged(string value) { OnPropertyChanged(nameof(FilteredItems)); RefreshRows(); }
 
     private void ApplyBulkSelection()
     {
@@ -111,6 +112,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
             item.IsSelectionEnabled = !IsBulkMode && !IsBusy && !AppServices.Installations.IsScanning;
             item.IsSelected = IsAllSelected || (IsV09Selected && item.Installation.SchemaFamily == OptiSchemaFamily.V09) || (IsV10Selected && item.Installation.SchemaFamily == OptiSchemaFamily.V10);
         }
+        RefreshRows();
         OnPropertiesChanged();
     }
     private void RefreshCatalog()
@@ -126,6 +128,9 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     }
     private bool MatchesSearch(OptiScalerUpdateItemViewModel item)
     {
+        if (IsBulkMode && !IsAllSelected &&
+            (!IsV09Selected || item.Installation.SchemaFamily != OptiSchemaFamily.V09) &&
+            (!IsV10Selected || item.Installation.SchemaFamily != OptiSchemaFamily.V10)) return false;
         var search = SearchText.Trim(); if (search.Length == 0) return true;
         var x = item.Installation;
         return x.GameDisplayName.Contains(search, StringComparison.OrdinalIgnoreCase) || x.GameExeName?.Contains(search, StringComparison.OrdinalIgnoreCase) == true || x.OptiBinaryFileName.Contains(search, StringComparison.OrdinalIgnoreCase) || x.InstallDirectory.Contains(search, StringComparison.OrdinalIgnoreCase) || x.FileVersion.ToString().Contains(search, StringComparison.OrdinalIgnoreCase);
@@ -137,8 +142,17 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
         Items.Add(item);
     }
     private void OnItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args) { if (args.PropertyName == nameof(OptiScalerUpdateItemViewModel.IsSelected)) OnPropertiesChanged(); }
+    private void RefreshRows()
+    {
+        UpdateRows = FilteredItems.Chunk(2)
+            .Select(items => new OptiScalerUpdateRow(items[0], items.Length > 1 ? items[1] : null))
+            .ToArray();
+        OnPropertyChanged(nameof(UpdateRows));
+    }
     private void OnPropertiesChanged()
     {
         OnPropertyChanged(nameof(IsBulkMode)); OnPropertyChanged(nameof(IsIndividualSelectionEnabled)); OnPropertyChanged(nameof(SelectedCount)); OnPropertyChanged(nameof(CanReplace)); OnPropertyChanged(nameof(FilteredItems));
     }
 }
+
+public sealed record OptiScalerUpdateRow(OptiScalerUpdateItemViewModel First, OptiScalerUpdateItemViewModel? Second);
