@@ -2,8 +2,8 @@ name: Check OptiScaler Schema
 
 on:
   schedule:
-    # 03:00 Asia/Seoul (18:00 UTC on the previous day)
-    - cron: "0 18 * * *"
+    # 08:00 Asia/Seoul (23:00 UTC on the previous day)
+    - cron: "0 23 * * *"
   workflow_dispatch:
 
 permissions:
