@@ -9,6 +9,7 @@ namespace OptiEditor.App.ViewModels;
 public partial class GamesViewModel : ObservableObject, IDisposable
 {
     public ObservableCollection<OptiInstallation> Installations { get; } = [];
+    public IReadOnlyList<GameRow> GameRows { get; private set; } = [];
     private readonly List<OptiInstallation> _allInstallations = [];
     [ObservableProperty] public partial bool IsScanning { get; set; }
     [ObservableProperty] public partial string SearchText { get; set; } = "";
@@ -56,6 +57,8 @@ public partial class GamesViewModel : ObservableObject, IDisposable
             || x.InstallDirectory.Contains(search, StringComparison.OrdinalIgnoreCase)
             || x.GameExeName?.Contains(search, StringComparison.OrdinalIgnoreCase) == true).ToList();
         Installations.Clear(); foreach (var installation in results) Installations.Add(installation);
+        GameRows = results.Chunk(2).Select(items => new GameRow(items[0], items.Length > 1 ? items[1] : null)).ToArray();
+        OnPropertyChanged(nameof(GameRows));
         InstallationCountText = $"{results.Count} installation{(results.Count == 1 ? "" : "s")}";
         EmptyMessage = results.Count == 0 ? "No OptiScaler installations were found." : "";
     }
@@ -66,4 +69,9 @@ public partial class GamesViewModel : ObservableObject, IDisposable
         EmptyMessage = Installations.Count == 0 ? "No OptiScaler installations were found." : "";
         if (IsScanning) StatusText = "Scanning installed OptiScaler instances...";
     }
+}
+
+public sealed record GameRow(OptiInstallation First, OptiInstallation? Second)
+{
+    public bool HasSecond => Second is not null;
 }

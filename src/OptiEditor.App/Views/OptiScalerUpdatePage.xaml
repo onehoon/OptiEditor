@@ -1,13 +1,13 @@
 <Page x:Name="RootPage" x:Class="OptiEditor.App.Views.OptiScalerUpdatePage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:OptiEditor.App.ViewModels">
   <Page.Resources>
     <DataTemplate x:Key="InstallationCardTemplate" x:DataType="vm:OptiScalerUpdateItemViewModel">
-      <Border Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
-        <Grid RowSpacing="4">
+      <Border Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" HorizontalAlignment="Stretch">
+        <Grid RowSpacing="4" HorizontalAlignment="Stretch">
           <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-          <Grid>
+          <Grid HorizontalAlignment="Stretch">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <TextBlock Text="{x:Bind Installation.GameDisplayName}" Style="{StaticResource SubtitleTextBlockStyle}"/>
-            <CheckBox Grid.Column="1" IsChecked="{x:Bind IsSelected, Mode=TwoWay}" IsEnabled="{x:Bind IsSelectionEnabled, Mode=OneWay}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+            <CheckBox Grid.Column="1" IsChecked="{x:Bind IsSelected, Mode=TwoWay}" IsEnabled="{x:Bind IsSelectionEnabled, Mode=OneWay}" HorizontalAlignment="Right" VerticalAlignment="Top"/>
           </Grid>
           <TextBlock Grid.Row="1" Text="{x:Bind Installation.GameExeName}"/>
           <TextBlock Grid.Row="2"><Run Text="{x:Bind Installation.OptiBinaryFileName}"/><Run Text=" ("/><Run Text="{x:Bind Installation.FileVersion}"/><Run Text=")"/></TextBlock>
@@ -17,23 +17,19 @@
     </DataTemplate>
   </Page.Resources>
   <ScrollViewer><StackPanel Padding="24" Spacing="16">
-    <TextBlock Text="OptiScaler Update" Style="{StaticResource TitleTextBlockStyle}"/>
+    <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="OptiScaler Update" Style="{StaticResource TitleTextBlockStyle}" VerticalAlignment="Center"/><StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"><Button Content="Replace Selected" Click="ReplaceSelected_Click" Style="{StaticResource AccentButtonStyle}" IsEnabled="{x:Bind ViewModel.CanReplace, Mode=OneWay}"/><Button Content="Cancel" Click="Cancel_Click" IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay}"/><ProgressRing IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" Width="24" Height="24"/></StackPanel></Grid>
     <Border Padding="20" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
       <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <StackPanel Spacing="8"><TextBlock Text="Source OptiScaler DLL" Style="{StaticResource SubtitleTextBlockStyle}"/>
-          <TextBlock Text="{x:Bind ViewModel.SourceDetails, Mode=OneWay}" TextWrapping="Wrap"/>
-          <TextBlock Text="{x:Bind ViewModel.SourceError, Mode=OneWay}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" Visibility="{x:Bind ViewModel.HasSourceError, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-        </StackPanel>
+        <StackPanel Spacing="8"><TextBlock Text="Source OptiScaler DLL" Style="{StaticResource SubtitleTextBlockStyle}"/><TextBlock Text="{x:Bind ViewModel.SourceDetails, Mode=OneWay}" TextWrapping="Wrap"/><TextBlock Text="{x:Bind ViewModel.SourceError, Mode=OneWay}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" Visibility="{x:Bind ViewModel.HasSourceError, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}"/></StackPanel>
         <Button Grid.Column="1" Content="Select Source" Click="SelectSource_Click" Style="{StaticResource AccentButtonStyle}" VerticalAlignment="Center" IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay, Converter={StaticResource BooleanNegationConverter}}"/>
       </Grid>
     </Border>
     <Border Padding="20" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
-      <Grid RowSpacing="8"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Version Selection" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center"/><StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"><Button Content="Replace Selected" Click="ReplaceSelected_Click" Style="{StaticResource AccentButtonStyle}" IsEnabled="{x:Bind ViewModel.CanReplace, Mode=OneWay}"/><Button Content="Cancel" Click="Cancel_Click" IsEnabled="{x:Bind ViewModel.IsBusy, Mode=OneWay}"/></StackPanel></Grid>
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="16"><CheckBox Content="OptiScaler 0.9" IsChecked="{x:Bind ViewModel.IsV09Selected, Mode=TwoWay}"/><CheckBox Content="OptiScaler 0.10" IsChecked="{x:Bind ViewModel.IsV10Selected, Mode=TwoWay}"/><CheckBox Content="All" IsChecked="{x:Bind ViewModel.IsAllSelected, Mode=TwoWay}"/><TextBox Width="280" PlaceholderText="Search installations" Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
-        <TextBlock Grid.Row="2" Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" Visibility="{x:Bind ViewModel.HasStatusText, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+      <Grid RowSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Version Selection" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center"/><TextBox Grid.Column="1" Width="280" PlaceholderText="Search installations" Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/></Grid>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="16"><CheckBox Content="OptiScaler 0.9" IsChecked="{x:Bind ViewModel.IsV09Selected, Mode=TwoWay}"/><CheckBox Content="OptiScaler 0.10" IsChecked="{x:Bind ViewModel.IsV10Selected, Mode=TwoWay}"/><CheckBox Content="All" IsChecked="{x:Bind ViewModel.IsAllSelected, Mode=TwoWay}"/></StackPanel>
       </Grid>
     </Border>
-    <ItemsControl ItemsSource="{x:Bind ViewModel.UpdateRows, Mode=OneWay}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:OptiScalerUpdateRow"><Grid Margin="0,0,0,12" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><ContentPresenter Content="{x:Bind First}" ContentTemplate="{StaticResource InstallationCardTemplate}"/><ContentPresenter Grid.Column="1" Content="{x:Bind Second}" ContentTemplate="{StaticResource InstallationCardTemplate}" Visibility="{x:Bind HasSecond, Converter={StaticResource BooleanToVisibilityConverter}}"/></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+    <ItemsControl ItemsSource="{x:Bind ViewModel.UpdateRows, Mode=OneWay}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:OptiScalerUpdateRow"><Grid Margin="0,0,0,12" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><ContentPresenter Content="{x:Bind First}" ContentTemplate="{StaticResource InstallationCardTemplate}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/><ContentPresenter Grid.Column="1" Content="{x:Bind Second}" ContentTemplate="{StaticResource InstallationCardTemplate}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Visibility="{x:Bind HasSecond, Converter={StaticResource BooleanToVisibilityConverter}}"/></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
   </StackPanel></ScrollViewer>
 </Page>

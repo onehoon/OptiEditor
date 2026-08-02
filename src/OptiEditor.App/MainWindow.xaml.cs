@@ -49,7 +49,7 @@ public sealed partial class MainWindow : Window
 
     private double MeasureAutoPaneWidth()
     {
-        const double iconColumnAndPadding = 68; const double minPaneWidth = 240; var maxTextWidth = 0.0;
+        const double iconColumnAndPadding = 92; const double minPaneWidth = 160; var maxTextWidth = 0.0;
         foreach (var label in Navigation.MenuItems.Concat(Navigation.FooterMenuItems).OfType<NavigationViewItem>().Select(x => (x.Content as TextBlock)?.Text).Where(x => !string.IsNullOrWhiteSpace(x)))
         {
             var block = new TextBlock { Text = label }; block.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity)); maxTextWidth = Math.Max(maxTextWidth, block.DesiredSize.Width);
