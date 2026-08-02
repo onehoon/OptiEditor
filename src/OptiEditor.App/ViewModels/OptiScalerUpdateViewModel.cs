@@ -87,7 +87,17 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
         }
     }
     partial void OnSourceChanged(SourceOptiScalerBinary? value) { OnPropertyChanged(nameof(SourceDetails)); OnPropertyChanged(nameof(CanReplace)); }
-    partial void OnIsScanningChanged(bool value) => OnPropertyChanged(nameof(CanScan));
+    partial void OnIsBusyChanged(bool value) => NotifyWorkStateChanged();
+    partial void OnIsScanningChanged(bool value) => NotifyWorkStateChanged();
+
+    private void NotifyWorkStateChanged()
+    {
+        OnPropertyChanged(nameof(IsWorking));
+        OnPropertyChanged(nameof(CanCancel));
+        OnPropertyChanged(nameof(CanScan));
+        OnPropertyChanged(nameof(CanReplace));
+        OnPropertyChanged(nameof(IsIndividualSelectionEnabled));
+    }
     partial void OnSourceErrorChanged(string? value) => OnPropertyChanged(nameof(HasSourceError));
     partial void OnStatusTextChanged(string value) => OnPropertyChanged(nameof(HasStatusText));
 

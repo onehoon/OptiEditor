@@ -25,12 +25,10 @@ public partial class PresetsViewModel : ObservableObject
     {
         try
         {
-            var user = await AppServices.LoadPresetsAsync();
+            var presets = await AppServices.LoadPresetsAsync();
             Presets.Clear();
-            var builtIns = AppServices.BuiltInPresets.GetAll();
-            var overriddenIds = user.Select(x => x.Id).ToHashSet();
-            foreach (var preset in builtIns.Where(x => !overriddenIds.Contains(x.Id)).Concat(user).OrderBy(x => x.Name)) Presets.Add(CreateCardItem(preset));
-            StatusText = Presets.Count == 0 ? "No user presets have been created." : $"{Presets.Count} presets available.";
+            foreach (var preset in presets.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)) Presets.Add(CreateCardItem(preset));
+            StatusText = Presets.Count == 0 ? "No presets are available." : $"{Presets.Count} presets available.";
             OnPropertyChanged(nameof(FilteredPresets));
         }
         catch (Exception ex) { AppServices.Logger.Error("Preset list could not be loaded.", ex); StatusText = "Presets could not be loaded. See logs for details."; }
