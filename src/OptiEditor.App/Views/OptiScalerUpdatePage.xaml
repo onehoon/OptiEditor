@@ -26,7 +26,7 @@
     </Border>
     <Border Padding="20" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
       <Grid RowSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Version Selection" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center"/><TextBox Grid.Column="1" Width="280" PlaceholderText="Search installations" Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/></Grid>
+        <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Version Selection" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center"/><TextBox Grid.Column="1" Width="280" PlaceholderText="Search installations" VerticalContentAlignment="Center" Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/></Grid>
         <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="16"><CheckBox Content="OptiScaler 0.9" IsChecked="{x:Bind ViewModel.IsV09Selected, Mode=TwoWay}"/><CheckBox Content="OptiScaler 0.10" IsChecked="{x:Bind ViewModel.IsV10Selected, Mode=TwoWay}"/><CheckBox Content="All" IsChecked="{x:Bind ViewModel.IsAllSelected, Mode=TwoWay}"/></StackPanel>
       </Grid>
     </Border>

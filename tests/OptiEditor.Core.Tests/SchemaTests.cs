@@ -88,4 +88,18 @@ public sealed class SchemaTests
         try { var store = new EditorVisibilityStore(folder); await store.SaveAsync([new(OptiSchemaFamily.V09, "framegen.enabled", EditorVisibility.Hidden)]); var loaded = await store.LoadAsync(); var item = Assert.Single(loaded); Assert.Equal(OptiSchemaFamily.V09, item.Family); Assert.Equal(EditorVisibility.Hidden, item.Visibility); }
         finally { Directory.Delete(folder, true); }
     }
+
+    [Fact]
+    public async Task Startup_tab_store_defaults_to_games_and_persists_selection()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new StartupTabStore(folder);
+            Assert.Equal(StartupTabs.Games, await store.LoadAsync());
+            await store.SaveAsync(StartupTabs.OptiScalerUpdate);
+            Assert.Equal(StartupTabs.OptiScalerUpdate, await store.LoadAsync());
+        }
+        finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+    }
 }

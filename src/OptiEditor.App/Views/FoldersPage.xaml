@@ -15,7 +15,7 @@
           <DataTemplate x:DataType="vm:ScanRootItemViewModel">
             <Grid Margin="0,4" ColumnSpacing="12">
               <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-              <CheckBox IsChecked="{x:Bind IsEnabled, Mode=TwoWay}" VerticalAlignment="Center"/>
+              <CheckBox Width="20" Height="20" Padding="0" IsChecked="{x:Bind IsEnabled, Mode=TwoWay}" VerticalAlignment="Center"/>
               <TextBlock Grid.Column="1" Text="{x:Bind Path}" VerticalAlignment="Center" TextWrapping="Wrap"/>
               <Button Grid.Column="2" Content="Remove" Click="Remove_Click" Tag="{x:Bind}"/>
             </Grid>

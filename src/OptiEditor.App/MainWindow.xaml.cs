@@ -31,10 +31,12 @@ public sealed partial class MainWindow : Window
         ApplyDefaultSize();
     }
 
-    private void Navigation_Loaded(object sender, RoutedEventArgs e)
+    private async void Navigation_Loaded(object sender, RoutedEventArgs e)
     {
-        Navigation.SelectedItem = Navigation.MenuItems[0];
         Navigation.OpenPaneLength = MeasureAutoPaneWidth();
+        var startupTab = await Services.AppServices.StartupTab.LoadAsync();
+        Navigation.SelectedItem = Navigation.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(item => item.Tag as string == startupTab)
+            ?? Navigation.MenuItems[0];
     }
 
     private void ApplyDefaultSize()

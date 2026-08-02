@@ -1,5 +1,8 @@
 # OptiEditor
 
+> [!WARNING]
+> **OptiEditor is currently under active development. Do not use it with your games or important OptiScaler installations yet.**
+
 OptiEditor is a Windows desktop utility for discovering, configuring, presetting, and locally updating existing [OptiScaler](https://github.com/optiscaler/OptiScaler) installations.
 
 > [!IMPORTANT]

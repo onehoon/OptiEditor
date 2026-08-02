@@ -18,6 +18,7 @@ public static class AppServices
     public static IIniFileService IniFiles { get; } = new IniFileService();
     public static OptiSchemaResolver Schemas { get; } = new();
     public static IEditorVisibilityStore EditorVisibility { get; } = new EditorVisibilityStore(AppData);
+    public static IStartupTabStore StartupTab { get; } = new StartupTabStore(AppData);
     public static IUserPresetStore Presets { get; } = new UserPresetStore(AppData, Logger);
     public static IBuiltInPresetProvider BuiltInPresets { get; } = new BuiltInPresetProvider();
     public static OptiScalerSourceValidator OptiScalerSourceValidator { get; } = new(new SystemFileVersionInfoProvider());
