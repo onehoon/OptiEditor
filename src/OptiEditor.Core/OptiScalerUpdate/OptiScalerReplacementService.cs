@@ -6,7 +6,7 @@ using OptiEditor.Core.Utilities;
 namespace OptiEditor.Core.OptiScalerUpdate;
 
 public enum OptiScalerReplacementStatus { Replaced, Skipped, Failed, Canceled }
-public enum OptiScalerReplacementReason { None, TargetMissing, TargetNotOptiScaler, FileInUse, AccessDenied, TemporaryValidationFailed, FinalVerificationFailed, SourceValidationFailed, Canceled, UnexpectedFailure, MultipleOptiScalerBinaries }
+public enum OptiScalerReplacementReason { None, TargetMissing, TargetNotOptiScaler, TargetVersionFamilyChanged, FileInUse, AccessDenied, TemporaryValidationFailed, FinalVerificationFailed, SourceValidationFailed, Canceled, UnexpectedFailure, MultipleOptiScalerBinaries }
 
 public sealed record OptiScalerReplacementTarget(OptiInstallation Installation);
 public sealed record OptiScalerReplacementPlan(SourceOptiScalerBinary Source, IReadOnlyList<OptiScalerReplacementTarget> Targets, IReadOnlyList<OptiScalerReplacementResult> SkippedTargets);
@@ -137,6 +137,18 @@ public sealed class OptiScalerReplacementService(IFileVersionInfoProvider versio
             if (!File.Exists(target.OptiBinaryPath)) return Result(target, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.TargetMissing, "The installed OptiScaler binary is no longer available.");
             var currentMetadata = versionInfo.Read(target.OptiBinaryPath);
             if (!OptiBinaryRules.IsOptiScaler(currentMetadata)) return Result(target, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.TargetNotOptiScaler, "The target is no longer identified as an OptiScaler binary.");
+            // Re-check the installed version family immediately before touching
+            // the file: family classification (and any user confirmation of a
+            // family change) happened once during preparation, but the
+            // confirmation dialogs give the user arbitrary time for the
+            // installed binary to change family externally in the meantime.
+            // Same-family patch updates (e.g. 0.9.1 -> 0.9.9) are unaffected,
+            // since only the family is compared, not the full version.
+            var currentFamily = OptiBinaryRules.DetectFamily(currentMetadata);
+            if (currentFamily == OptiSchemaFamily.Unsupported)
+                return Result(target, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.TargetVersionFamilyChanged, "The installed OptiScaler version is no longer supported. Scan again and retry the replacement.");
+            if (currentFamily != target.SchemaFamily)
+                return Result(target, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.TargetVersionFamilyChanged, "The installed OptiScaler version family changed after preparation. Scan again and retry the replacement.");
             // Re-check immediately before touching the file: classification ran
             // once during preparation, but the user can spend arbitrary time on
             // the confirmation dialogs in between, during which a second

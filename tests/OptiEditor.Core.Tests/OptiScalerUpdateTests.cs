@@ -38,7 +38,7 @@ public sealed class OptiScalerUpdateTests
         {
             var metadata = VersionData(); var provider = new FixedVersionInfo(metadata); var validator = new OptiScalerSourceValidator(provider);
             var sourceInfo = Assert.IsType<SourceOptiScalerBinary>(validator.Validate(source).Source);
-            var installation = new OptiInstallation { IniPath = Path.Combine(root, "OptiScaler.ini"), InstallDirectory = root, OptiBinaryPath = target, OptiBinaryFileName = "dxgi.dll", FileVersion = new Version(0, 9, 0, 1), SchemaFamily = OptiSchemaFamily.V09, GameDisplayName = "Game", ScannedAt = DateTimeOffset.UtcNow };
+            var installation = new OptiInstallation { IniPath = Path.Combine(root, "OptiScaler.ini"), InstallDirectory = root, OptiBinaryPath = target, OptiBinaryFileName = "dxgi.dll", FileVersion = new Version(0, 10, 0, 1), SchemaFamily = OptiSchemaFamily.V10, GameDisplayName = "Game", ScannedAt = DateTimeOffset.UtcNow };
             var service = new OptiScalerReplacementService(provider, validator, new NullLogger(), root);
             var result = Assert.Single(await service.ReplaceAsync(new(sourceInfo, [new(installation)], [])));
             Assert.Equal(OptiScalerReplacementStatus.Replaced, result.Status); Assert.Equal("dxgi.dll", result.TargetFileName); Assert.Equal(await File.ReadAllBytesAsync(source), await File.ReadAllBytesAsync(target));
@@ -59,7 +59,7 @@ public sealed class OptiScalerUpdateTests
             var provider = new FlakyVersionInfo(VersionData()) { TargetPath = target };
             var validator = new OptiScalerSourceValidator(provider);
             var sourceInfo = Assert.IsType<SourceOptiScalerBinary>(validator.Validate(source).Source);
-            var installation = new OptiInstallation { IniPath = Path.Combine(root, "OptiScaler.ini"), InstallDirectory = root, OptiBinaryPath = target, OptiBinaryFileName = "dxgi.dll", FileVersion = new Version(0, 9, 0, 1), SchemaFamily = OptiSchemaFamily.V09, GameDisplayName = "Game", ScannedAt = DateTimeOffset.UtcNow };
+            var installation = new OptiInstallation { IniPath = Path.Combine(root, "OptiScaler.ini"), InstallDirectory = root, OptiBinaryPath = target, OptiBinaryFileName = "dxgi.dll", FileVersion = new Version(0, 10, 0, 1), SchemaFamily = OptiSchemaFamily.V10, GameDisplayName = "Game", ScannedAt = DateTimeOffset.UtcNow };
             var service = new OptiScalerReplacementService(provider, validator, new NullLogger(), root);
             var result = Assert.Single(await service.ReplaceAsync(new(sourceInfo, [new(installation)], [])));
             Assert.Equal(OptiScalerReplacementStatus.Failed, result.Status);
@@ -82,7 +82,7 @@ public sealed class OptiScalerUpdateTests
             var provider = new ThrowingOnSecondReadVersionInfo(VersionData()) { TargetPath = target };
             var validator = new OptiScalerSourceValidator(provider);
             var sourceInfo = Assert.IsType<SourceOptiScalerBinary>(validator.Validate(source).Source);
-            var installation = new OptiInstallation { IniPath = Path.Combine(root, "OptiScaler.ini"), InstallDirectory = root, OptiBinaryPath = target, OptiBinaryFileName = "dxgi.dll", FileVersion = new Version(0, 9, 0, 1), SchemaFamily = OptiSchemaFamily.V09, GameDisplayName = "Game", ScannedAt = DateTimeOffset.UtcNow };
+            var installation = new OptiInstallation { IniPath = Path.Combine(root, "OptiScaler.ini"), InstallDirectory = root, OptiBinaryPath = target, OptiBinaryFileName = "dxgi.dll", FileVersion = new Version(0, 10, 0, 1), SchemaFamily = OptiSchemaFamily.V10, GameDisplayName = "Game", ScannedAt = DateTimeOffset.UtcNow };
             var service = new OptiScalerReplacementService(provider, validator, new NullLogger(), root);
             var result = Assert.Single(await service.ReplaceAsync(new(sourceInfo, [new(installation)], [])));
             Assert.Equal(OptiScalerReplacementStatus.Failed, result.Status);
@@ -328,6 +328,93 @@ public sealed class OptiScalerUpdateTests
         }
         finally { Directory.Delete(root, true); }
     }
+
+    [Theory]
+    [InlineData(9, 9)]
+    [InlineData(10, 3)]
+    public async Task Replacement_allows_a_same_family_patch_version_change_at_replace_time(int minor, int actualBuild)
+    {
+        // The family re-check must compare families, not full versions: the
+        // installed binary can legitimately move from e.g. 0.9.1 to 0.9.9
+        // between preparation and replacement (another OptiEditor session, or
+        // OptiScaler's own self-update) without that being treated the same
+        // as an actual 0.9<->0.10 family change.
+        var root = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var source = Path.Combine(root, "source.bin"); var target = Path.Combine(root, "dxgi.dll");
+        await File.WriteAllBytesAsync(source, [1, 2, 3]); await File.WriteAllBytesAsync(target, [4, 5]);
+        try
+        {
+            var provider = new FixedVersionInfo(VersionData() with { FileMajorPart = 0, FileMinorPart = minor, FileBuildPart = actualBuild, FileVersionText = $"0.{minor}.{actualBuild}.0" });
+            var validator = new OptiScalerSourceValidator(provider);
+            var sourceInfo = Assert.IsType<SourceOptiScalerBinary>(validator.Validate(source).Source);
+            var installation = MakeInstallation(root, "dxgi.dll", minor == 9 ? OptiSchemaFamily.V09 : OptiSchemaFamily.V10, "Game");
+            var service = new OptiScalerReplacementService(provider, validator, new NullLogger(), root);
+            var result = Assert.Single(await service.ReplaceAsync(new(sourceInfo, [new(installation)], [])));
+            Assert.Equal(OptiScalerReplacementStatus.Replaced, result.Status);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Theory]
+    [InlineData(9, 10)]
+    [InlineData(10, 9)]
+    public async Task Replacement_is_skipped_when_the_target_version_family_changes_after_preparation(int preparedMinor, int actualMinor)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var source = Path.Combine(root, "source.bin"); var target = Path.Combine(root, "dxgi.dll");
+        var originalBytes = new byte[] { 4, 5 };
+        await File.WriteAllBytesAsync(source, [1, 2, 3]); await File.WriteAllBytesAsync(target, originalBytes);
+        try
+        {
+            var preparedFamily = preparedMinor == 9 ? OptiSchemaFamily.V09 : OptiSchemaFamily.V10;
+            var versions = new Dictionary<string, FileVersionData>(StringComparer.OrdinalIgnoreCase)
+            {
+                // The source keeps reporting the family the plan was built
+                // against; only the installed target binary changed externally.
+                [source] = VersionData() with { FileMajorPart = 0, FileMinorPart = preparedMinor },
+                [target] = VersionData() with { FileMajorPart = 0, FileMinorPart = actualMinor },
+            };
+            var provider = new PathVersionInfo(versions);
+            var validator = new OptiScalerSourceValidator(provider);
+            var sourceInfo = Assert.IsType<SourceOptiScalerBinary>(validator.Validate(source).Source);
+            var installation = MakeInstallation(root, "dxgi.dll", preparedFamily, "Game");
+            var service = new OptiScalerReplacementService(provider, validator, new NullLogger(), root);
+            var result = Assert.Single(await service.ReplaceAsync(new(sourceInfo, [new(installation)], [])));
+            Assert.Equal(OptiScalerReplacementStatus.Skipped, result.Status);
+            Assert.Equal(OptiScalerReplacementReason.TargetVersionFamilyChanged, result.Reason);
+            Assert.Equal(originalBytes, await File.ReadAllBytesAsync(target));
+            Assert.Empty(Directory.EnumerateFiles(root, "*.optieditor.rollback*", SearchOption.AllDirectories));
+            Assert.Empty(Directory.EnumerateFiles(root, "*.optieditor.tmp*", SearchOption.AllDirectories));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task Replacement_is_skipped_when_the_target_becomes_an_unsupported_version_after_preparation()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var source = Path.Combine(root, "source.bin"); var target = Path.Combine(root, "dxgi.dll");
+        var originalBytes = new byte[] { 4, 5 };
+        await File.WriteAllBytesAsync(source, [1, 2, 3]); await File.WriteAllBytesAsync(target, originalBytes);
+        try
+        {
+            var versions = new Dictionary<string, FileVersionData>(StringComparer.OrdinalIgnoreCase)
+            {
+                [source] = VersionData() with { FileMajorPart = 0, FileMinorPart = 10 },
+                [target] = VersionData() with { FileMajorPart = 0, FileMinorPart = 11 },
+            };
+            var provider = new PathVersionInfo(versions);
+            var validator = new OptiScalerSourceValidator(provider);
+            var sourceInfo = Assert.IsType<SourceOptiScalerBinary>(validator.Validate(source).Source);
+            var installation = MakeInstallation(root, "dxgi.dll", OptiSchemaFamily.V10, "Game");
+            var service = new OptiScalerReplacementService(provider, validator, new NullLogger(), root);
+            var result = Assert.Single(await service.ReplaceAsync(new(sourceInfo, [new(installation)], [])));
+            Assert.Equal(OptiScalerReplacementStatus.Skipped, result.Status);
+            Assert.Equal(OptiScalerReplacementReason.TargetVersionFamilyChanged, result.Reason);
+            Assert.Equal(originalBytes, await File.ReadAllBytesAsync(target));
+        }
+        finally { Directory.Delete(root, true); }
+    }
     private static FileVersionData VersionData() => new(0, 10, 1, 0, "0.10.1", "OptiScaler", "OptiScaler", "any.bin", "OptiScaler", "0.10.1.0");
     private static OptiInstallation MakeInstallation(string directory, string binaryFileName, OptiSchemaFamily family, string gameDisplayName) => new()
     {
@@ -341,7 +428,21 @@ public sealed class OptiScalerUpdateTests
         ScannedAt = DateTimeOffset.UtcNow,
     };
     private sealed class FixedVersionInfo(FileVersionData data) : IFileVersionInfoProvider { public FileVersionData Read(string path) => data; }
-    private sealed class PathVersionInfo(IReadOnlyDictionary<string, FileVersionData> map) : IFileVersionInfoProvider { public FileVersionData Read(string path) => map[path]; }
+    // Falls back to matching by filename when the exact path isn't mapped, so a
+    // map keyed by the original source/target paths still resolves for the
+    // staged copy (same filename, different directory) and the ".optieditor.tmp"
+    // temporary copy (filename prefixed by the original) the replacement
+    // service creates internally.
+    private sealed class PathVersionInfo(IReadOnlyDictionary<string, FileVersionData> map) : IFileVersionInfoProvider
+    {
+        public FileVersionData Read(string path)
+        {
+            if (map.TryGetValue(path, out var exact)) return exact;
+            var fileName = Path.GetFileName(path);
+            foreach (var (key, value) in map) if (fileName.StartsWith(Path.GetFileName(key), StringComparison.OrdinalIgnoreCase)) return value;
+            throw new KeyNotFoundException($"No version data configured for '{path}'.");
+        }
+    }
     private sealed class FlakyVersionInfo(FileVersionData good) : IFileVersionInfoProvider
     {
         private int _targetReads;
