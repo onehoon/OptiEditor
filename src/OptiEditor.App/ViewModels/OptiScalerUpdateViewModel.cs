@@ -64,25 +64,54 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     partial void OnSourceErrorChanged(string? value) => OnPropertyChanged(nameof(HasSourceError));
     partial void OnStatusTextChanged(string value) => OnPropertyChanged(nameof(HasStatusText));
 
-    public async Task<IReadOnlyList<OptiScalerReplacementResult>> ReplaceAsync(CancellationToken cancellationToken = default)
+    // Split from the previous single ReplaceAsync so the caller (the page) can
+    // interject a version-family confirmation and/or a multiple-proxy-DLL
+    // notice between preparation and execution. IsBusy is set here and stays
+    // set across both the dialog(s) shown in between and ExecuteReplacementAsync
+    // itself; either AbortPreparedReplacement or ExecuteReplacementAsync must be
+    // called afterward to release it and the cancellation source.
+    public async Task<OptiScalerUpdatePreparation?> PrepareReplacementAsync(CancellationToken cancellationToken = default)
     {
-        if (!CanReplace || Source is null) return [];
+        if (!CanReplace || Source is null) return null;
         IsBusy = true; _operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
             StatusText = "Preparing replacement...";
             var plan = await BuildPlanAsync(_operationCancellation.Token);
-            if (plan.Targets.Count == 0) { Results = plan.SkippedTargets; StatusText = "No selected installations remain valid."; return Results; }
+            var classification = await AppServices.OptiScalerReplacement.ClassifyTargetsAsync(Source, plan.Targets.Select(x => x.Installation).ToArray(), _operationCancellation.Token);
+            var finalPlan = new OptiScalerReplacementPlan(Source, classification.ReadyTargets, [.. plan.SkippedTargets, .. classification.MultiProxyTargets]);
+            return new(finalPlan, classification.MultiProxyTargets, classification.FamilyMismatchTargets);
+        }
+        catch (OperationCanceledException) { StatusText = "Replacement canceled."; AbortPreparedReplacement(); return null; }
+        catch (Exception ex) { AppServices.Logger.Error("OptiScaler replacement preparation failed.", ex); SourceError = ex.Message; StatusText = "Replacement could not start."; AbortPreparedReplacement(); return null; }
+    }
+
+    // The user declined a warning (or the page navigated away) after a
+    // successful PrepareReplacementAsync: release what it left open without
+    // replacing anything.
+    public void AbortPreparedReplacement(string? statusText = null)
+    {
+        _operationCancellation?.Dispose(); _operationCancellation = null;
+        IsBusy = false;
+        if (statusText is not null) StatusText = statusText;
+        OnPropertiesChanged();
+    }
+
+    public async Task<IReadOnlyList<OptiScalerReplacementResult>> ExecuteReplacementAsync(OptiScalerReplacementPlan plan)
+    {
+        try
+        {
+            if (plan.Targets.Count == 0) { Results = plan.SkippedTargets; StatusText = DescribeOutcome(Results); return Results; }
             ProgressTotal = plan.Targets.Count; ProgressCurrent = 0;
             var progress = new Progress<OptiScalerReplacementProgress>(p => { ProgressCurrent = p.Completed; ProgressTotal = p.Total; StatusText = $"Replacing OptiScaler binaries... {p.Completed} of {p.Total}"; });
-            Results = await AppServices.OptiScalerReplacement.ReplaceAsync(plan, progress, _operationCancellation.Token);
+            Results = await AppServices.OptiScalerReplacement.ReplaceAsync(plan, progress, _operationCancellation?.Token ?? CancellationToken.None);
             var refreshDirectories = Results.Where(x => x.Status is OptiScalerReplacementStatus.Replaced or OptiScalerReplacementStatus.Failed).Select(x => x.InstallDirectory).Distinct(StringComparer.OrdinalIgnoreCase);
             await AppServices.Installations.RescanDirectoriesAsync(refreshDirectories, CancellationToken.None);
             StatusText = DescribeOutcome(Results);
             return Results;
         }
         catch (OperationCanceledException) { StatusText = "Replacement canceled."; return Results; }
-        catch (Exception ex) { AppServices.Logger.Error("OptiScaler replacement preparation failed.", ex); SourceError = ex.Message; StatusText = "Replacement could not start."; return Results; }
+        catch (Exception ex) { AppServices.Logger.Error("OptiScaler replacement failed.", ex); SourceError = ex.Message; StatusText = "Replacement could not start."; return Results; }
         finally { _operationCancellation?.Dispose(); _operationCancellation = null; IsBusy = false; OnPropertiesChanged(); }
     }
 
@@ -116,7 +145,9 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
         {
             ReplacementOutcome.Completed => $"Replacement completed. {replaced} of {results.Count} installation(s) were replaced.",
             ReplacementOutcome.Canceled => "Replacement was canceled. No installations were replaced.",
-            ReplacementOutcome.Skipped => $"No installations were replaced. All {results.Count} selected installation(s) were skipped (busy or no longer valid).",
+            ReplacementOutcome.Skipped => results.All(x => x.Reason == OptiScalerReplacementReason.MultipleOptiScalerBinaries)
+                ? "No installations were replaced. All selected installations require manual DLL cleanup."
+                : $"No installations were replaced. All {results.Count} selected installation(s) were skipped (busy or no longer valid).",
             ReplacementOutcome.Failed => $"Replacement failed. 0 of {results.Count} installation(s) were replaced.",
             _ => $"Replacement partially completed. {replaced} of {results.Count} installation(s) were replaced.",
         };
@@ -197,3 +228,8 @@ public sealed record OptiScalerUpdateRow(OptiScalerUpdateItemViewModel First, Op
 {
     public bool HasSecond => Second is not null;
 }
+
+public sealed record OptiScalerUpdatePreparation(
+    OptiScalerReplacementPlan Plan,
+    IReadOnlyList<OptiScalerReplacementResult> MultiProxyTargets,
+    IReadOnlyList<OptiScalerReplacementTarget> FamilyMismatchTargets);

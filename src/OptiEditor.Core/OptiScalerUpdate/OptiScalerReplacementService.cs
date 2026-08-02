@@ -6,15 +6,54 @@ using OptiEditor.Core.Utilities;
 namespace OptiEditor.Core.OptiScalerUpdate;
 
 public enum OptiScalerReplacementStatus { Replaced, Skipped, Failed, Canceled }
-public enum OptiScalerReplacementReason { None, TargetMissing, TargetNotOptiScaler, FileInUse, AccessDenied, TemporaryValidationFailed, FinalVerificationFailed, SourceValidationFailed, Canceled, UnexpectedFailure }
+public enum OptiScalerReplacementReason { None, TargetMissing, TargetNotOptiScaler, FileInUse, AccessDenied, TemporaryValidationFailed, FinalVerificationFailed, SourceValidationFailed, Canceled, UnexpectedFailure, MultipleOptiScalerBinaries }
 
 public sealed record OptiScalerReplacementTarget(OptiInstallation Installation);
 public sealed record OptiScalerReplacementPlan(SourceOptiScalerBinary Source, IReadOnlyList<OptiScalerReplacementTarget> Targets, IReadOnlyList<OptiScalerReplacementResult> SkippedTargets);
-public sealed record OptiScalerReplacementResult(string InstallDirectory, string? GameDisplayName, string TargetFileName, Version? PreviousVersion, Version? InstalledVersion, OptiScalerReplacementStatus Status, OptiScalerReplacementReason Reason, string? UserMessage = null, Exception? InternalException = null);
+public sealed record OptiScalerReplacementResult(string InstallDirectory, string? GameDisplayName, string TargetFileName, Version? PreviousVersion, Version? InstalledVersion, OptiScalerReplacementStatus Status, OptiScalerReplacementReason Reason, string? UserMessage = null, Exception? InternalException = null, IReadOnlyList<string>? DetectedBinaryNames = null);
 public sealed record OptiScalerReplacementProgress(int Completed, int Total, string? GameDisplayName, string? TargetFileName);
+
+// Result of pre-flight classification, run once per replacement attempt right
+// before building the final plan: separates installations with more than one
+// identified OptiScaler proxy DLL (never auto-resolved; always Skipped) from
+// the remaining ready targets, and flags which of those ready targets are on
+// a different OptiScaler version family (0.9 vs 0.10) than the source, so the
+// caller can require explicit confirmation before including them.
+public sealed record OptiScalerPlanClassification(
+    IReadOnlyList<OptiScalerReplacementTarget> ReadyTargets,
+    IReadOnlyList<OptiScalerReplacementResult> MultiProxyTargets,
+    IReadOnlyList<OptiScalerReplacementTarget> FamilyMismatchTargets);
 
 public sealed class OptiScalerReplacementService(IFileVersionInfoProvider versionInfo, OptiScalerSourceValidator sourceValidator, IDiagnosticLogger logger, string stagingRoot)
 {
+    // Must run against freshly rescanned candidates, immediately before the
+    // replacement plan is built, so both the proxy-DLL count and the version
+    // family comparison reflect the current on-disk state rather than
+    // whatever was true when the source file was first selected.
+    public Task<OptiScalerPlanClassification> ClassifyTargetsAsync(SourceOptiScalerBinary source, IReadOnlyList<OptiInstallation> candidates, CancellationToken cancellationToken = default) =>
+        Task.Run(() =>
+        {
+            var sourceFamily = OptiBinaryRules.DetectFamily(source.FileVersion);
+            var ready = new List<OptiScalerReplacementTarget>();
+            var multiProxy = new List<OptiScalerReplacementResult>();
+            var mismatched = new List<OptiScalerReplacementTarget>();
+            foreach (var installation in candidates)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var detected = OptiBinaryRules.FindProxyBinaries(installation.InstallDirectory, versionInfo);
+                if (detected.Count > 1)
+                {
+                    var names = string.Join(", ", detected);
+                    multiProxy.Add(new(installation.InstallDirectory, installation.GameDisplayName, names, installation.FileVersion, null, OptiScalerReplacementStatus.Skipped, OptiScalerReplacementReason.MultipleOptiScalerBinaries, $"Multiple OptiScaler DLLs were detected: {names}. Remove the unnecessary DLLs manually and scan again.", DetectedBinaryNames: detected));
+                    continue;
+                }
+                var target = new OptiScalerReplacementTarget(installation);
+                ready.Add(target);
+                if (installation.SchemaFamily != sourceFamily) mismatched.Add(target);
+            }
+            return new OptiScalerPlanClassification(ready, multiProxy, mismatched);
+        }, cancellationToken);
+
     public async Task<IReadOnlyList<OptiScalerReplacementResult>> ReplaceAsync(OptiScalerReplacementPlan plan, IProgress<OptiScalerReplacementProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         (string Directory, string Path, byte[] Hash) staged = default;

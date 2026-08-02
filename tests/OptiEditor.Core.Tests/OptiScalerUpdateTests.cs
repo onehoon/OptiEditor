@@ -112,6 +112,136 @@ public sealed class OptiScalerUpdateTests
     }
 
     [Fact]
+    public async Task ClassifyTargets_flags_mismatch_only_across_version_families()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var source = Path.Combine(root, "source.bin"); File.WriteAllBytes(source, [1]);
+        var sameFamilyDir = Directory.CreateDirectory(Path.Combine(root, "same")).FullName; File.WriteAllBytes(Path.Combine(sameFamilyDir, "dxgi.dll"), [2]);
+        var differentFamilyDir = Directory.CreateDirectory(Path.Combine(root, "different")).FullName; File.WriteAllBytes(Path.Combine(differentFamilyDir, "dxgi.dll"), [3]);
+        try
+        {
+            // The source and every proxy DLL report the same PE metadata (0.10.x,
+            // identified as OptiScaler); only the installations' own SchemaFamily
+            // (as if from a fresh scan) differs, which is what ClassifyTargets
+            // must compare the source's family against — not a re-read of the
+            // proxy DLL's own version.
+            var provider = new FixedVersionInfo(VersionData());
+            var validator = new OptiScalerSourceValidator(provider);
+            var sourceInfo = Assert.IsType<SourceOptiScalerBinary>(validator.Validate(source).Source);
+            var same = MakeInstallation(sameFamilyDir, "dxgi.dll", OptiSchemaFamily.V10, "Same Family Game");
+            var different = MakeInstallation(differentFamilyDir, "dxgi.dll", OptiSchemaFamily.V09, "Different Family Game");
+            var service = new OptiScalerReplacementService(provider, validator, new NullLogger(), root);
+            var classification = await service.ClassifyTargetsAsync(sourceInfo, [same, different]);
+            Assert.Equal(2, classification.ReadyTargets.Count);
+            Assert.Empty(classification.MultiProxyTargets);
+            var mismatched = Assert.Single(classification.FamilyMismatchTargets);
+            Assert.Equal("Different Family Game", mismatched.Installation.GameDisplayName);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task ClassifyTargets_flags_no_mismatch_for_same_family_patch_updates()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var source = Path.Combine(root, "source.bin"); File.WriteAllBytes(source, [1]);
+        var dir = Directory.CreateDirectory(Path.Combine(root, "install")).FullName; File.WriteAllBytes(Path.Combine(dir, "dxgi.dll"), [2]);
+        try
+        {
+            var provider = new FixedVersionInfo(VersionData() with { FileMajorPart = 0, FileMinorPart = 9, FileBuildPart = 9 });
+            var validator = new OptiScalerSourceValidator(provider);
+            var sourceInfo = Assert.IsType<SourceOptiScalerBinary>(validator.Validate(source).Source);
+            var installation = MakeInstallation(dir, "dxgi.dll", OptiSchemaFamily.V09, "Game");
+            var service = new OptiScalerReplacementService(provider, validator, new NullLogger(), root);
+            var classification = await service.ClassifyTargetsAsync(sourceInfo, [installation]);
+            Assert.Single(classification.ReadyTargets);
+            Assert.Empty(classification.FamilyMismatchTargets);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task ClassifyTargets_skips_installations_with_multiple_identified_OptiScaler_binaries()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var source = Path.Combine(root, "source.bin"); File.WriteAllBytes(source, [1]);
+        var multiDir = Directory.CreateDirectory(Path.Combine(root, "multi")).FullName;
+        File.WriteAllBytes(Path.Combine(multiDir, "dxgi.dll"), [2]);
+        File.WriteAllBytes(Path.Combine(multiDir, "winmm.dll"), [3]);
+        try
+        {
+            var provider = new FixedVersionInfo(VersionData());
+            var validator = new OptiScalerSourceValidator(provider);
+            var sourceInfo = Assert.IsType<SourceOptiScalerBinary>(validator.Validate(source).Source);
+            var installation = MakeInstallation(multiDir, "dxgi.dll", OptiSchemaFamily.V10, "Multi DLL Game");
+            var service = new OptiScalerReplacementService(provider, validator, new NullLogger(), root);
+            var classification = await service.ClassifyTargetsAsync(sourceInfo, [installation]);
+            Assert.Empty(classification.ReadyTargets);
+            var skipped = Assert.Single(classification.MultiProxyTargets);
+            Assert.Equal(OptiScalerReplacementStatus.Skipped, skipped.Status);
+            Assert.Equal(OptiScalerReplacementReason.MultipleOptiScalerBinaries, skipped.Reason);
+            Assert.Equal(["dxgi.dll", "winmm.dll"], skipped.DetectedBinaryNames);
+            Assert.Contains("dxgi.dll", skipped.UserMessage);
+            Assert.Contains("winmm.dll", skipped.UserMessage);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task ClassifyTargets_does_not_treat_a_non_OptiScaler_candidate_file_as_a_second_binary()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var source = Path.Combine(root, "source.bin"); File.WriteAllBytes(source, [1]);
+        var dir = Directory.CreateDirectory(Path.Combine(root, "install")).FullName;
+        var optiScalerDll = Path.Combine(dir, "dxgi.dll"); File.WriteAllBytes(optiScalerDll, [2]);
+        var unrelatedDll = Path.Combine(dir, "winmm.dll"); File.WriteAllBytes(unrelatedDll, [3]);
+        try
+        {
+            var versions = new Dictionary<string, FileVersionData>(StringComparer.OrdinalIgnoreCase)
+            {
+                [source] = VersionData(),
+                [optiScalerDll] = VersionData(),
+                [unrelatedDll] = VersionData() with { ProductName = "Some Other Mod", InternalName = null, OriginalFilename = null, FileDescription = null },
+            };
+            var provider = new PathVersionInfo(versions);
+            var validator = new OptiScalerSourceValidator(provider);
+            var sourceInfo = Assert.IsType<SourceOptiScalerBinary>(validator.Validate(source).Source);
+            var installation = MakeInstallation(dir, "dxgi.dll", OptiSchemaFamily.V10, "Game");
+            var service = new OptiScalerReplacementService(provider, validator, new NullLogger(), root);
+            var classification = await service.ClassifyTargetsAsync(sourceInfo, [installation]);
+            Assert.Single(classification.ReadyTargets);
+            Assert.Empty(classification.MultiProxyTargets);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task ClassifyTargets_keeps_processing_ready_targets_alongside_multi_proxy_ones()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "OptiEditorTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var source = Path.Combine(root, "source.bin"); File.WriteAllBytes(source, [1]);
+        var validDir = Directory.CreateDirectory(Path.Combine(root, "valid")).FullName; File.WriteAllBytes(Path.Combine(validDir, "dxgi.dll"), [2]);
+        var multiDir = Directory.CreateDirectory(Path.Combine(root, "multi")).FullName;
+        File.WriteAllBytes(Path.Combine(multiDir, "dxgi.dll"), [3]);
+        File.WriteAllBytes(Path.Combine(multiDir, "winmm.dll"), [4]);
+        try
+        {
+            var provider = new FixedVersionInfo(VersionData());
+            var validator = new OptiScalerSourceValidator(provider);
+            var sourceInfo = Assert.IsType<SourceOptiScalerBinary>(validator.Validate(source).Source);
+            var valid = MakeInstallation(validDir, "dxgi.dll", OptiSchemaFamily.V10, "Valid Game");
+            var multi = MakeInstallation(multiDir, "dxgi.dll", OptiSchemaFamily.V10, "Multi Game");
+            var service = new OptiScalerReplacementService(provider, validator, new NullLogger(), root);
+            var classification = await service.ClassifyTargetsAsync(sourceInfo, [valid, multi]);
+            var ready = Assert.Single(classification.ReadyTargets);
+            Assert.Equal("Valid Game", ready.Installation.GameDisplayName);
+            var skipped = Assert.Single(classification.MultiProxyTargets);
+            Assert.Equal("Multi Game", skipped.GameDisplayName);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public void Source_validation_rejects_missing_or_unreadable_file_version()
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".bin"); File.WriteAllBytes(path, [1]);
@@ -125,7 +255,19 @@ public sealed class OptiScalerUpdateTests
         finally { File.Delete(path); }
     }
     private static FileVersionData VersionData() => new(0, 10, 1, 0, "0.10.1", "OptiScaler", "OptiScaler", "any.bin", "OptiScaler", "0.10.1.0");
+    private static OptiInstallation MakeInstallation(string directory, string binaryFileName, OptiSchemaFamily family, string gameDisplayName) => new()
+    {
+        IniPath = Path.Combine(directory, "OptiScaler.ini"),
+        InstallDirectory = directory,
+        OptiBinaryPath = Path.Combine(directory, binaryFileName),
+        OptiBinaryFileName = binaryFileName,
+        FileVersion = new Version(family == OptiSchemaFamily.V09 ? 0 : 0, family == OptiSchemaFamily.V09 ? 9 : 10),
+        SchemaFamily = family,
+        GameDisplayName = gameDisplayName,
+        ScannedAt = DateTimeOffset.UtcNow,
+    };
     private sealed class FixedVersionInfo(FileVersionData data) : IFileVersionInfoProvider { public FileVersionData Read(string path) => data; }
+    private sealed class PathVersionInfo(IReadOnlyDictionary<string, FileVersionData> map) : IFileVersionInfoProvider { public FileVersionData Read(string path) => map[path]; }
     private sealed class FlakyVersionInfo(FileVersionData good) : IFileVersionInfoProvider
     {
         private int _targetReads;
