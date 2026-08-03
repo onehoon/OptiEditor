@@ -56,7 +56,7 @@ public partial class OptiScalerUpdateViewModel : ObservableObject, IDisposable
     public string SourceDetails => Source is null ? "No source file selected" : $"{Source.Path}\nFile version: {Source.FileVersion}\nProduct version: {Source.ProductVersion ?? "Not available"}";
     public bool HasSourceError => !string.IsNullOrWhiteSpace(SourceError);
     public bool HasStatusText => !string.IsNullOrWhiteSpace(StatusText);
-    public IEnumerable<OptiScalerUpdateItemViewModel> FilteredItems => Items.Where(MatchesSearch);
+    public IEnumerable<OptiScalerUpdateItemViewModel> FilteredItems => Items.Where(MatchesSearch).OrderBy(x => x.Installation.GameDisplayName, StringComparer.OrdinalIgnoreCase);
 
     public void SelectSource(string path)
     {
