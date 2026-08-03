@@ -40,8 +40,14 @@ public sealed partial class MainWindow : Window
         var startupTab = StartupTabs.Games;
         try { startupTab = await Services.AppServices.StartupTab.LoadAsync(); }
         catch (Exception ex) { Services.AppServices.Logger.Error("Startup tab preference could not be loaded.", ex); }
-        Navigation.SelectedItem = Navigation.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(item => item.Tag as string == startupTab)
-            ?? Navigation.MenuItems[0];
+
+        // Do not overwrite a page the user selected while the preference file
+        // was still being loaded.
+        if (Navigation.SelectedItem is null)
+        {
+            Navigation.SelectedItem = Navigation.MenuItems.OfType<NavigationViewItem>().FirstOrDefault(item => item.Tag as string == startupTab)
+                ?? Navigation.MenuItems[0];
+        }
     }
 
     private void ApplyDefaultSize()
