@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Velopack;
 using OptiEditor.App.Services;
+using OptiEditor.App.Updates;
 
 namespace OptiEditor.App;
 public static class Program
@@ -8,7 +9,13 @@ public static class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        StartupDiagnostics.Info($"Process startup. Arguments: {string.Join(' ', args)}");
+        // Velopack must run before any normal application startup code so its
+        // install/update/uninstall hook invocations can exit immediately.
+        // Auto-apply is disabled here because the single-instance mutex below
+        // must be acquired before a pending update is applied.
+        VelopackApp.Build()
+            .SetAutoApplyOnStartup(false)
+            .Run();
 
         // Held for the whole process lifetime (released on process exit / Main
         // return). Prevents two OptiEditor processes from running concurrently,
@@ -23,12 +30,13 @@ public static class Program
             return;
         }
 
+        StartupDiagnostics.Info($"Process startup. Arguments: {string.Join(' ', args)}");
         AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) => StartupDiagnostics.Error("Unhandled AppDomain exception.", eventArgs.ExceptionObject as Exception);
         TaskScheduler.UnobservedTaskException += (_, eventArgs) => { StartupDiagnostics.Error("Unobserved task exception.", eventArgs.Exception); eventArgs.SetObserved(); };
         try
         {
-            StartupDiagnostics.Info("Starting Velopack lifecycle.");
-            VelopackApp.Build().SetAutoApplyOnStartup(true).Run();
+            if (StartupUpdateCoordinator.TryApplyPendingUpdateAtLaunch()) return;
+
             StartupDiagnostics.Info("Velopack lifecycle completed. Initializing WinRT wrappers.");
             WinRT.ComWrappersSupport.InitializeComWrappers();
             Application.Start(_ =>
