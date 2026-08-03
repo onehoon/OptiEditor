@@ -79,7 +79,6 @@ public partial class App : Application
             StartupDiagnostics.Info("Starting application update check after main window activation.");
             var updateResult = await new StartupUpdateCoordinator().RunAsync();
             StartupDiagnostics.Info($"Application update decision: {updateResult}.");
-            if (updateResult == StartupUpdateResult.UpdateRestartStarted) return;
 
             StartupDiagnostics.Info("Starting installation scan.");
             _ = StartInstallationScanAsync();
