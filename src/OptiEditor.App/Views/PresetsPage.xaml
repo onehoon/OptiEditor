@@ -31,6 +31,11 @@
                     </StackPanel>
                     <CheckBox
                         Grid.Column="1"
+                        Width="20"
+                        Height="20"
+                        MinWidth="0"
+                        MinHeight="0"
+                        Padding="0"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Top"
                         IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
@@ -63,7 +68,7 @@
                     <ItemsRepeater.Layout>
                         <UniformGridLayout
                             Orientation="Horizontal"
-                            MinItemWidth="480"
+                            MinItemWidth="420"
                             MinColumnSpacing="12"
                             MinRowSpacing="12"
                             ItemsStretch="Fill"

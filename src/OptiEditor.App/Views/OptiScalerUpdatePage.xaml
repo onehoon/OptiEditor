@@ -32,7 +32,7 @@
     <ScrollViewer Grid.Row="3" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
       <ItemsRepeater ItemsSource="{x:Bind ViewModel.FilteredItems, Mode=OneWay}" ItemTemplate="{StaticResource InstallationCardTemplate}" HorizontalAlignment="Stretch">
         <ItemsRepeater.Layout>
-          <UniformGridLayout Orientation="Horizontal" MinItemWidth="480" MinColumnSpacing="12" MinRowSpacing="12" ItemsStretch="Fill" ItemsJustification="Start"/>
+          <UniformGridLayout Orientation="Horizontal" MinItemWidth="420" MinColumnSpacing="12" MinRowSpacing="12" ItemsStretch="Fill" ItemsJustification="Start"/>
         </ItemsRepeater.Layout>
       </ItemsRepeater>
     </ScrollViewer>
