@@ -60,32 +60,37 @@ public partial class App : Application
             DispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
             Window.Activate();
 
-            StartupDiagnostics.Info("Main window activated. Scheduling application update check.");
+            StartupDiagnostics.Info("Main window activated. Scheduling post-launch startup work.");
             if (!DispatcherQueue.TryEnqueue(
                     Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
-                    () => _ = RunPostLaunchAsync()))
+                    StartPostLaunchWork))
             {
                 StartupDiagnostics.Info("Post-launch startup work could not be queued. Starting immediately.");
-                _ = RunPostLaunchAsync();
+                StartPostLaunchWork();
             }
         }
         catch (Exception ex) { StartupDiagnostics.Error("Main window startup failed.", ex); throw; }
     }
 
-    private static async Task RunPostLaunchAsync()
+    private static void StartPostLaunchWork()
+    {
+        StartupDiagnostics.Info("Starting installation scan after main window activation.");
+        _ = StartInstallationScanAsync();
+
+        StartupDiagnostics.Info("Starting application update check after main window activation.");
+        _ = CheckForUpdatesAsync();
+    }
+
+    private static async Task CheckForUpdatesAsync()
     {
         try
         {
-            StartupDiagnostics.Info("Starting application update check after main window activation.");
             var updateResult = await new StartupUpdateCoordinator().RunAsync();
             StartupDiagnostics.Info($"Application update decision: {updateResult}.");
-
-            StartupDiagnostics.Info("Starting installation scan.");
-            _ = StartInstallationScanAsync();
         }
         catch (Exception ex)
         {
-            StartupDiagnostics.Error("Post-launch startup work failed.", ex);
+            StartupDiagnostics.Error("Post-launch update check failed.", ex);
         }
     }
 
