@@ -26,12 +26,7 @@
                         TextTrimming="CharacterEllipsis" />
                     <TextBlock
                         MaxLines="1"
-                        TextTrimming="CharacterEllipsis">
-                        <Run Text="{x:Bind OptiBinaryFileName}" />
-                        <Run Text=" (" />
-                        <Run Text="{x:Bind FileVersion}" />
-                        <Run Text=")" />
-                    </TextBlock>
+                        TextTrimming="CharacterEllipsis"><Run Text="{x:Bind OptiBinaryFileName}"/><Run Text=" ("/><Run Text="{x:Bind FileVersion}"/><Run Text=")"/></TextBlock>
                     <StackPanel
                         Orientation="Horizontal"
                         Spacing="8">
