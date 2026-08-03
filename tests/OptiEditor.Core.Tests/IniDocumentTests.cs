@@ -105,7 +105,7 @@ public sealed class IniDocumentTests
         try
         {
             var service = new IniFileService(); var loaded = await service.LoadAsync(temp); loaded.Document.ApplyPatch(new(new("DLSSG", "DispatchFlags"), "0x14"));
-            var save = await service.SaveAsync(loaded.Document, loaded.Snapshot); Assert.True(save.Success); Assert.True(File.Exists(temp + ".optieditor.bak"));
+            var save = await service.SaveAsync(loaded.Document, loaded.Snapshot); Assert.True(save.Success); Assert.False(File.Exists(temp + ".optieditor.bak"));
             var reloaded = await service.LoadAsync(temp); Assert.Equal("0x14", reloaded.Document.GetRawValue(new("DLSSG", "DispatchFlags")));
             reloaded.Document.ApplyPatch(new(new("DLSSG", "DispatchFlags"), "0x15")); await File.AppendAllTextAsync(temp, "; external change\n");
             var rejected = await service.SaveAsync(reloaded.Document, reloaded.Snapshot); Assert.False(rejected.Success); Assert.Contains("externally", rejected.Error!, StringComparison.OrdinalIgnoreCase); Assert.Contains("external change", await File.ReadAllTextAsync(temp));

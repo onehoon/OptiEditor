@@ -54,6 +54,7 @@ public sealed class IniFileService(IIniBackupService? backups = null, IAtomicFil
             var afterBackup = await CaptureSnapshotAsync(path, null, cancellationToken);
             if (!string.Equals(afterBackup.ContentHash, expectedSnapshot.ContentHash, StringComparison.Ordinal)) throw new IniFileChangedExternallyException();
             cancellationToken.ThrowIfCancellationRequested(); await _replacer.ReplaceAsync(temporary, path, cancellationToken); temporary = null;
+            try { File.Delete(backup); } catch { /* best-effort cleanup; save already succeeded */ }
             var snapshot = await CaptureSnapshotAsync(path, null, cancellationToken);
             return new(true, backup, snapshot, document.ModifiedKeys.ToArray(), null);
         }

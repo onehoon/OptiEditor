@@ -42,7 +42,7 @@ The configuration editor currently supports **OptiScaler 0.9.x and 0.10.x**. The
 - Preserve unsupported or future values until the user explicitly changes them.
 - Preserve comments, unknown lines, ordering, whitespace, encoding, BOM, and line endings.
 - Detect external file changes before saving and refuse to overwrite a modified INI.
-- Create `OptiScaler.ini.optieditor.bak` before a successful INI replacement.
+- Create a temporary `OptiScaler.ini.optieditor.bak` rollback copy during the INI replacement, removed automatically once the save succeeds.
 - Revert individual settings, revert all changes, reload from disk, or reset supported Auto-capable settings to `auto`.
 - Configure which editor settings are visible separately for OptiScaler 0.9 and 0.10.
 
