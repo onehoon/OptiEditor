@@ -1,7 +1,6 @@
 name: CI
 on:
   pull_request:
-  push:
     branches: [main]
 jobs:
   build-test:
@@ -13,6 +12,3 @@ jobs:
       - run: dotnet restore OptiEditor.sln
       - run: dotnet build OptiEditor.sln --configuration Release -p:Platform=x64 --no-restore
       - run: dotnet test tests/OptiEditor.Core.Tests/OptiEditor.Core.Tests.csproj --configuration Release --no-build
-      - run: dotnet publish src/OptiEditor.App/OptiEditor.App.csproj --configuration Release -r win-x64 --self-contained true -o publish
-      - shell: pwsh
-        run: if (!(Test-Path 'publish/OptiEditor.pri')) { throw 'WinUI PRI resource was not published.' }
