@@ -13,17 +13,33 @@ public static class AppServices
     private static readonly string AppData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OptiEditor");
     private static readonly string DeletedBuiltInPresetsPath = Path.Combine(AppData, "deleted-built-in-presets.json");
     private static readonly SemaphoreSlim DeletedBuiltInPresetsLock = new(1, 1);
-    public static IDiagnosticLogger Logger { get; } = new FileDiagnosticLogger(AppData);
-    public static ScanRootStore ScanRoots { get; } = new(AppData, Logger);
-    public static InstallationDiscoveryScanner Scanner { get; } = new(new SystemFileVersionInfoProvider(), Logger);
-    public static IInstallationCatalog Installations { get; } = new InstallationCatalog(ScanRoots, Scanner);
-    public static IIniFileService IniFiles { get; } = new IniFileService();
-    public static OptiSchemaResolver Schemas { get; } = new();
-    public static IEditorVisibilityStore EditorVisibility { get; } = new EditorVisibilityStore(AppData, Logger);
-    public static IStartupTabStore StartupTab { get; } = new StartupTabStore(AppData, Logger);
-    public static ISourceCommentVisibilityStore SourceComments { get; } = new SourceCommentVisibilityStore(AppData, Logger);
-    public static IUserPresetStore Presets { get; } = new UserPresetStore(AppData, Logger);
-    public static IBuiltInPresetProvider BuiltInPresets { get; } = new BuiltInPresetProvider();
+
+    private static readonly Lazy<IDiagnosticLogger> LoggerInstance = new(() => new FileDiagnosticLogger(AppData));
+    private static readonly Lazy<ScanRootStore> ScanRootsInstance = new(() => new ScanRootStore(AppData, Logger));
+    private static readonly Lazy<InstallationDiscoveryScanner> ScannerInstance = new(() => new InstallationDiscoveryScanner(new SystemFileVersionInfoProvider(), Logger));
+    private static readonly Lazy<IInstallationCatalog> InstallationsInstance = new(() => new InstallationCatalog(ScanRoots, Scanner));
+    private static readonly Lazy<IIniFileService> IniFilesInstance = new(() => new IniFileService());
+    private static readonly Lazy<OptiSchemaResolver> SchemasInstance = new(() => new OptiSchemaResolver());
+    private static readonly Lazy<IEditorVisibilityStore> EditorVisibilityInstance = new(() => new EditorVisibilityStore(AppData, Logger));
+    private static readonly Lazy<IStartupTabStore> StartupTabInstance = new(() => new StartupTabStore(AppData, Logger));
+    private static readonly Lazy<ISourceCommentVisibilityStore> SourceCommentsInstance = new(() => new SourceCommentVisibilityStore(AppData, Logger));
+    private static readonly Lazy<IUserPresetStore> PresetsInstance = new(() => new UserPresetStore(AppData, Logger));
+    private static readonly Lazy<IBuiltInPresetProvider> BuiltInPresetsInstance = new(() => new BuiltInPresetProvider());
+    private static readonly Lazy<OptiScalerSourceValidator> OptiScalerSourceValidatorInstance = new(() => new OptiScalerSourceValidator(new SystemFileVersionInfoProvider()));
+    private static readonly Lazy<OptiScalerReplacementService> OptiScalerReplacementInstance = new(() => new OptiScalerReplacementService(new SystemFileVersionInfoProvider(), OptiScalerSourceValidator, Logger, AppData));
+
+    public static IDiagnosticLogger Logger => LoggerInstance.Value;
+    public static ScanRootStore ScanRoots => ScanRootsInstance.Value;
+    public static InstallationDiscoveryScanner Scanner => ScannerInstance.Value;
+    public static IInstallationCatalog Installations => InstallationsInstance.Value;
+    public static IIniFileService IniFiles => IniFilesInstance.Value;
+    public static OptiSchemaResolver Schemas => SchemasInstance.Value;
+    public static IEditorVisibilityStore EditorVisibility => EditorVisibilityInstance.Value;
+    public static IStartupTabStore StartupTab => StartupTabInstance.Value;
+    public static ISourceCommentVisibilityStore SourceComments => SourceCommentsInstance.Value;
+    public static IUserPresetStore Presets => PresetsInstance.Value;
+    public static IBuiltInPresetProvider BuiltInPresets => BuiltInPresetsInstance.Value;
+
     public static async Task<IReadOnlyList<PresetDefinition>> LoadPresetsAsync()
     {
         var user = (await Presets.LoadAsync()).ToList();
@@ -38,6 +54,7 @@ public static class AppServices
         if (changed) await Presets.SaveAsync(user);
         return user;
     }
+
     public static async Task MarkBuiltInPresetDeletedAsync(Guid id)
     {
         await DeletedBuiltInPresetsLock.WaitAsync();
@@ -56,6 +73,7 @@ public static class AppServices
         }
         finally { DeletedBuiltInPresetsLock.Release(); }
     }
+
     private static async Task<HashSet<Guid>> LoadDeletedBuiltInPresetIdsAsync()
     {
         if (!File.Exists(DeletedBuiltInPresetsPath)) return [];
@@ -66,6 +84,7 @@ public static class AppServices
             throw new PresetStoreException("Deleted built-in preset records could not be loaded safely.", ex);
         }
     }
-    public static OptiScalerSourceValidator OptiScalerSourceValidator { get; } = new(new SystemFileVersionInfoProvider());
-    public static OptiScalerReplacementService OptiScalerReplacement { get; } = new(new SystemFileVersionInfoProvider(), OptiScalerSourceValidator, Logger, AppData);
+
+    public static OptiScalerSourceValidator OptiScalerSourceValidator => OptiScalerSourceValidatorInstance.Value;
+    public static OptiScalerReplacementService OptiScalerReplacement => OptiScalerReplacementInstance.Value;
 }
