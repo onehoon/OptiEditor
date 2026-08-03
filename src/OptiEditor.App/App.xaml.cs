@@ -51,22 +51,43 @@ public partial class App : Application
     /// Invoked when the application is launched.
     /// </summary>
     /// <param name="args">Details about the launch request and process.</param>
-    protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+    protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
         try
         {
-            StartupDiagnostics.Info("WinUI launch activated. Starting application update check.");
-            var updateResult = await new StartupUpdateCoordinator().RunAsync();
-            StartupDiagnostics.Info($"Application update decision: {updateResult}.");
-            if (updateResult == StartupUpdateResult.UpdateRestartStarted) return;
-            StartupDiagnostics.Info("Creating main window.");
+            StartupDiagnostics.Info("WinUI launch activated. Creating main window.");
             Window = new MainWindow();
             DispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
             Window.Activate();
-            StartupDiagnostics.Info("Main window activated. Starting installation scan.");
-            _ = StartInstallationScanAsync();
+
+            StartupDiagnostics.Info("Main window activated. Scheduling application update check.");
+            if (!DispatcherQueue.TryEnqueue(
+                    Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                    () => _ = RunPostLaunchAsync()))
+            {
+                StartupDiagnostics.Info("Post-launch startup work could not be queued. Starting immediately.");
+                _ = RunPostLaunchAsync();
+            }
         }
         catch (Exception ex) { StartupDiagnostics.Error("Main window startup failed.", ex); throw; }
+    }
+
+    private static async Task RunPostLaunchAsync()
+    {
+        try
+        {
+            StartupDiagnostics.Info("Starting application update check after main window activation.");
+            var updateResult = await new StartupUpdateCoordinator().RunAsync();
+            StartupDiagnostics.Info($"Application update decision: {updateResult}.");
+            if (updateResult == StartupUpdateResult.UpdateRestartStarted) return;
+
+            StartupDiagnostics.Info("Starting installation scan.");
+            _ = StartInstallationScanAsync();
+        }
+        catch (Exception ex)
+        {
+            StartupDiagnostics.Error("Post-launch startup work failed.", ex);
+        }
     }
 
     private static async Task StartInstallationScanAsync()
