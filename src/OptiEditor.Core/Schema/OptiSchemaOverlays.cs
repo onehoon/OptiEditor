@@ -44,6 +44,8 @@ internal static class OptiSchemaOverlays
     private static readonly IReadOnlyList<SettingOption> SpoofedVendors = [new("0x10de", "Nvidia (0x10de)"), new("0x8086", "Intel (0x8086)"), new("0x1002", "AMD (0x1002)")];
     private static readonly IReadOnlyList<SettingOption> SpoofedDevices = [new("0x2684", "RTX 4090 (0x2684)"), new("0xE20B", "Intel Arc B580 (0xE20B)"), new("0x7550", "Radeon RX 9070 XT (0x7550)")];
     private static readonly IReadOnlyList<SettingOption> AnisotropyLevels = [new("2", "2x"), new("4", "4x"), new("8", "8x"), new("16", "16x")];
+    private static readonly IReadOnlyList<SettingOption> FrameTimeInputSources = [new("0", "Input (DLSSG/FSRFG/OptiFG)"), new("1", "Time between Present calls"), new("2", "Zero (XeFG only)")];
+    private static readonly IReadOnlyList<SettingOption> AllowedFrameAheadCounts = [new("1", "1"), new("2", "2"), new("3", "3")];
 
     public static IReadOnlyList<SettingDefinition> Apply(OptiSchemaFamily family, IReadOnlyList<SettingDefinition> definitions) => definitions
         .Select(definition => definition.Id switch
@@ -55,15 +57,11 @@ internal static class OptiSchemaOverlays
                 InputKind = SettingInputKind.Stepper,
                 Step = 1
             },
-            // Upstream Config.cpp resets this to auto when it's outside 1-3
-            // (release/0.9 and master both: `if (value < 1 || value > 3)
-            // reset()`); the schema generator's clamp-pattern matcher doesn't
-            // recognize this has-value-then-reset shape, so the range needs
-            // to be added here instead. FOV/color settings mentioned
-            // alongside this in review are documented as ranges in the INI
-            // comments only -- upstream has no matching validation for them,
-            // so no bound was added for those.
-            "FrameGen.AllowedFrameAhead" => definition with { Minimum = 1, Maximum = 3 },
+            // MANUAL OVERRIDE: upstream Config.cpp resets this to auto when it's outside 1-3
+            // (release/0.9 and master both: `if (value < 1 || value > 3) reset()`); confirmed
+            // by hand as a discrete 1/2/3 choice, not a free-form range. Do not revert this to
+            // a plain Minimum/Maximum bound on schema resync.
+            "FrameGen.AllowedFrameAhead" => Choice(definition, AllowedFrameAheadCounts, "Number of frames the FG is allowed to be ahead of the game."),
             "QualityOverrides.QualityRatioOverrideEnabled" => Text(definition, "Enables custom upscaling ratios for each quality mode."),
             "QualityOverrides.QualityRatioDLAA" => Text(definition, "DLAA ratio. Default Auto value: 1.0.", "DLAA"),
             "QualityOverrides.QualityRatioUltraQuality" => Text(definition, "Ultra Quality ratio. Default Auto value: 1.3.", "Ultra Quality"),
@@ -84,6 +82,10 @@ internal static class OptiSchemaOverlays
             "Spoofing.SpoofedVendorId" => Choice(definition, SpoofedVendors, "Selects the GPU vendor ID to spoof."),
             "Spoofing.SpoofedDeviceId" => Choice(definition, SpoofedDevices, "Selects the GPU device ID to spoof."),
             "Anisotropy.AnisotropyOverride" => Choice(definition, AnisotropyLevels, "Overrides maximum texture anisotropic filtering."),
+            // MANUAL OVERRIDE: upstream declares FTInput as a free-form string, but Config.cpp only
+            // accepts "0"/"1"/"2" -- confirmed by hand against the real accepted values. Do not remove
+            // this on schema resync or let an automated pass "clean it up" back to a text field.
+            "FrameGen.FTInput" => Choice(definition, FrameTimeInputSources, "Frametime source, would affect frame pacing."),
             "DLSSG.InterpolationCount" when family == OptiSchemaFamily.V10 => Choice(definition, DlssgInterpolationCounts, "Sets interpolated frame count."),
             "fakenvapi.LatencyFlexMode" when family == OptiSchemaFamily.V10 => Choice(definition, LatencyFlexModes, "Selects the latency flexibility mode."),
             "FSR.Fsr4ForceModel" when family == OptiSchemaFamily.V10 => Choice(definition, Fsr4ForceModels, "Forces an FSR 4 model precision override."),
