@@ -35,6 +35,8 @@ public sealed class CollapsibleSectionCard : Grid
     private readonly StackPanel _body;
     private readonly TextBlock _chevron;
 
+    public event Action<bool>? ExpandedChanged;
+
     public CollapsibleSectionCard(string title, UIElement content, bool isExpanded = false)
     {
         HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -73,6 +75,7 @@ public sealed class CollapsibleSectionCard : Grid
         {
             _body.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
             _chevron.Text = value ? "⌄" : "›";
+            ExpandedChanged?.Invoke(value);
         }
     }
 }
@@ -82,7 +85,7 @@ public sealed class AutoBooleanSettingControl : SettingControlBase
     public AutoBooleanSettingControl(string currentRawValue, Action<string> changed) : base(currentRawValue, changed)
     {
         var combo = new ComboBox { MinWidth = 220 };
-        Add(combo, "auto", "Auto"); Add(combo, "true", "Enabled"); Add(combo, "false", "Disabled"); Select(combo, currentRawValue);
+        Add(combo, "auto", "Auto"); Add(combo, "true", "True"); Add(combo, "false", "False"); Select(combo, currentRawValue);
         combo.SelectionChanged += (_, _) => { if (combo.SelectedItem is ComboBoxItem choice) SetValue((string)choice.Tag); };
         Children.Add(combo);
     }

@@ -13,6 +13,6 @@
       </StackPanel>
     </Border>
     <TextBox x:Name="SettingSearchBox" Grid.Row="2" PlaceholderText="Search settings" TextChanged="SettingSearchBox_TextChanged" VerticalContentAlignment="Center"/>
-    <ScrollViewer Grid.Row="3"><StackPanel x:Name="SettingsPanel" Spacing="4"/></ScrollViewer>
+    <ScrollViewer x:Name="SettingsScrollViewer" Grid.Row="3"><StackPanel x:Name="SettingsPanel" Spacing="4"/></ScrollViewer>
   </Grid>
 </Page>

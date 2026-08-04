@@ -15,6 +15,7 @@ public sealed partial class EditorPage : Page
     private bool _showSourceComments;
     private readonly List<PresetDefinition> _selectedPresets = [];
     private readonly Dictionary<EditorSettingItemViewModel, string> _presetRestoreValues = [];
+    private readonly Dictionary<string, bool> _sectionExpandState = new(StringComparer.OrdinalIgnoreCase);
     public EditorViewModel ViewModel { get; } = new();
     public EditorPage() => InitializeComponent();
 
@@ -174,6 +175,7 @@ public sealed partial class EditorPage : Page
 
     private void RenderSettings()
     {
+        var scrollOffset = SettingsScrollViewer.VerticalOffset;
         SettingsPanel.Children.Clear();
         var search = SettingSearchBox?.Text?.Trim() ?? string.Empty;
         var matchingSettings = ViewModel.Settings.Where(item => string.IsNullOrEmpty(search) || item.Binding.Definition.IniKey.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
@@ -207,7 +209,13 @@ public sealed partial class EditorPage : Page
                 ((Button)actions.Children[0]).Click += Revert_Click;
                 rows.Children.Add(grid);
             }
-            SettingsPanel.Children.Add(new CollapsibleSectionCard(group.First().GroupDisplayName ?? group.Key, rows, !string.IsNullOrEmpty(search)));
+            var title = group.First().GroupDisplayName ?? group.Key;
+            var isExpanded = _sectionExpandState.TryGetValue(title, out var expanded) ? expanded : !string.IsNullOrEmpty(search);
+            var card = new CollapsibleSectionCard(title, rows, isExpanded);
+            card.ExpandedChanged += value => _sectionExpandState[title] = value;
+            SettingsPanel.Children.Add(card);
         }
+
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => SettingsScrollViewer.ChangeView(null, scrollOffset, null, disableAnimation: true));
     }
 }
