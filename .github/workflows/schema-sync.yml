@@ -38,7 +38,34 @@ jobs:
           }
           "V09_SHA=$(Resolve-Commit 'release/0.9')" >> $env:GITHUB_ENV
           "V10_SHA=$(Resolve-Commit 'master')" >> $env:GITHUB_ENV
+      - name: Check whether upstream root INI files changed
+        shell: pwsh
+        run: |
+          $catalogPath = 'src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs'
+          $catalog = Get-Content -Raw $catalogPath
+          $source = [regex]::Match(
+            $catalog,
+            '// Source: optiscaler/OptiScaler \(release/0\.9 @ (?<v09>[0-9a-f]{40}); master @ (?<v10>[0-9a-f]{40})\)'
+          )
+          if (-not $source.Success) {
+            throw "Could not read the previously synchronized OptiScaler commits from $catalogPath."
+          }
+
+          function Get-IniHash([string] $Commit, [string] $Name) {
+            $path = Join-Path $env:RUNNER_TEMP "optiscaler-$Name.ini"
+            Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/optiscaler/OptiScaler/$Commit/OptiScaler.ini" -OutFile $path
+            return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+          }
+
+          $v09Changed = (Get-IniHash $source.Groups['v09'].Value 'previous-v09') -ne (Get-IniHash $env:V09_SHA 'current-v09')
+          $v10Changed = (Get-IniHash $source.Groups['v10'].Value 'previous-v10') -ne (Get-IniHash $env:V10_SHA 'current-v10')
+          "V09_INI_CHANGED=$($v09Changed.ToString().ToLowerInvariant())" >> $env:GITHUB_ENV
+          "V10_INI_CHANGED=$($v10Changed.ToString().ToLowerInvariant())" >> $env:GITHUB_ENV
+          if (-not $v09Changed -and -not $v10Changed) {
+            Write-Host 'Upstream root OptiScaler.ini files are unchanged.'
+          }
       - name: Regenerate schema from upstream source
+        if: env.V09_INI_CHANGED == 'true' || env.V10_INI_CHANGED == 'true'
         shell: pwsh
         # V09Ref/V10Ref stay as branch names -- they're only used for the
         # generated header's display text -- while V09Commit/V10Commit pin
@@ -49,13 +76,15 @@ jobs:
         # every run.
         run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sync-OptiScalerSchema.ps1 -V09Commit $env:V09_SHA -V10Commit $env:V10_SHA
       - name: Regenerate a second time to rule out run-to-run non-determinism
+        if: env.V09_INI_CHANGED == 'true' || env.V10_INI_CHANGED == 'true'
         shell: pwsh
         run: |
           Copy-Item src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs "$env:RUNNER_TEMP/first-generation.cs"
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Sync-OptiScalerSchema.ps1 -V09Commit $env:V09_SHA -V10Commit $env:V10_SHA
           $rerunDiff = Compare-Object (Get-Content "$env:RUNNER_TEMP/first-generation.cs") (Get-Content src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs)
           "IS_NONDETERMINISTIC=$(if ($rerunDiff) { 'true' } else { 'false' })" >> $env:GITHUB_ENV
-      - name: Open or update an issue when upstream changed
+      - name: Open or update an issue when upstream root INI changed
+        if: env.V09_INI_CHANGED == 'true' || env.V10_INI_CHANGED == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -90,9 +119,9 @@ jobs:
             $nonDeterminismWarning = "`n**Warning:** regenerating a second time in this same run, against the same checked-out commit, produced a *different* result than the first generation. This points at non-determinism in ${tick}tools/Sync-OptiScalerSchema.ps1${tick} itself (or a transient fetch problem), not necessarily a genuine upstream change -- investigate before trusting the diff below.`n"
           }
 
-          $title = "[Schema Sync] OptiScaler upstream schema changed"
+          $title = "[Schema Sync] OptiScaler upstream OptiScaler.ini changed"
           $body = @"
-          The daily schema check detected a change in OptiScaler's ${tick}release/0.9${tick} or ${tick}master${tick} source.
+          The daily schema check detected a change in the root ${tick}OptiScaler.ini${tick} on OptiScaler's ${tick}release/0.9${tick} or ${tick}master${tick} branch.
           $nonDeterminismWarning
           Review the generated diff, validate it locally, then commit the refreshed catalog deliberately. Release CI does not automatically consume upstream changes.
 
@@ -103,9 +132,11 @@ jobs:
           ${fence}
           </details>
           "@
+          $bodyPath = Join-Path $env:RUNNER_TEMP 'optiscaler-schema-sync-issue.md'
+          Set-Content -LiteralPath $bodyPath -Value $body -NoNewline -Encoding utf8
           $existing = gh issue list --repo $env:REPOSITORY --state open --search "$title in:title" --json number --jq '.[0].number'
           if ($existing) {
-            gh issue comment $existing --repo $env:REPOSITORY --body $body
+            gh issue comment $existing --repo $env:REPOSITORY --body-file $bodyPath
           } else {
-            gh issue create --repo $env:REPOSITORY --title $title --body $body
+            gh issue create --repo $env:REPOSITORY --title $title --body-file $bodyPath
           }
