@@ -25,7 +25,7 @@ public sealed class SchemaTests
     {
         var schema = new Opti10SchemaProvider();
         Assert.Equal(SettingValueKind.Boolean, schema.FindById("Plugins.LoadAsiPlugins")!.ValueKind);
-        Assert.Equal(SettingValueKind.Integer, schema.FindById("FrameGen.AllowedFrameAhead")!.ValueKind);
+        Assert.Equal(SettingValueKind.Enum, schema.FindById("FrameGen.AllowedFrameAhead")!.ValueKind);
         Assert.Equal(SettingValueKind.Double, schema.FindById("FSR.VerticalFov")!.ValueKind);
         Assert.Equal(SettingValueKind.String, schema.FindById("Menu.TTFFontPath")!.ValueKind);
         var forceModel = schema.FindById("FSR.Fsr4ForceModel")!;
@@ -118,11 +118,10 @@ public sealed class SchemaTests
         Assert.False(SettingValidator.Validate(anisotropyChoices, "6").IsValid);
 
         // Upstream Config.cpp resets AllowedFrameAhead to auto outside 1-3;
-        // the schema generator's clamp-pattern matcher misses that shape, so
-        // this range is added by hand in OptiSchemaOverlays.
+        // OptiSchemaOverlays exposes that bounded choice as an enum.
         var allowedFrameAhead = schema.FindById("FrameGen.AllowedFrameAhead")!;
-        Assert.Equal(1, allowedFrameAhead.Minimum);
-        Assert.Equal(3, allowedFrameAhead.Maximum);
+        Assert.Equal(SettingValueKind.Enum, allowedFrameAhead.ValueKind);
+        Assert.Equal(["1", "2", "3"], allowedFrameAhead.Options.Select(x => x.Value));
         Assert.False(SettingValidator.Validate(allowedFrameAhead, "0").IsValid);
         Assert.False(SettingValidator.Validate(allowedFrameAhead, "4").IsValid);
         Assert.True(SettingValidator.Validate(allowedFrameAhead, "1").IsValid);
