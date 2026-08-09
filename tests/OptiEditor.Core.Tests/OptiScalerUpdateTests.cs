@@ -259,6 +259,7 @@ public sealed class OptiScalerUpdateTests
     [InlineData(0, 8)]
     [InlineData(0, 11)]
     [InlineData(1, 0)]
+    [InlineData(10, 1)]
     public void Source_validation_rejects_unsupported_version_families(int major, int minor)
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".bin"); File.WriteAllBytes(path, [1]);
@@ -275,6 +276,7 @@ public sealed class OptiScalerUpdateTests
     [Theory]
     [InlineData(0, 9)]
     [InlineData(0, 10)]
+    [InlineData(10, 0)]
     public void Source_validation_accepts_supported_version_families(int major, int minor)
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".bin"); File.WriteAllBytes(path, [1]);
