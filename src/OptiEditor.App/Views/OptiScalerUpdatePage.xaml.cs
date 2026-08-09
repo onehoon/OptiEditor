@@ -142,7 +142,7 @@ public sealed partial class OptiScalerUpdatePage : Page
     private static string FamilyLabel(OptiSchemaFamily family) => family switch
     {
         OptiSchemaFamily.V09 => "0.9",
-        OptiSchemaFamily.V10 => "0.10",
+        OptiSchemaFamily.V10 => "0.10 / 10.0",
         _ => "Unsupported",
     };
     private static void OpenFolder(string path) => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", path) { UseShellExecute = true });
