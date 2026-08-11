@@ -119,9 +119,9 @@ public sealed class SchemaTests
         Assert.False(SettingValidator.Validate(anisotropyChoices, "6").IsValid);
 
         // Upstream Config.cpp resets AllowedFrameAhead to auto outside 1-3;
-        // the schema generator's clamp-pattern matcher misses that shape, so
-        // this range is added by hand in OptiSchemaOverlays.
+        // OptiSchemaOverlays exposes that bounded choice as an enum.
         var allowedFrameAhead = schema.FindById("FrameGen.AllowedFrameAhead")!;
+        Assert.Equal(SettingValueKind.Enum, allowedFrameAhead.ValueKind);
         Assert.Equal(["1", "2", "3"], allowedFrameAhead.Options.Select(x => x.Value));
         Assert.False(SettingValidator.Validate(allowedFrameAhead, "0").IsValid);
         Assert.False(SettingValidator.Validate(allowedFrameAhead, "4").IsValid);

@@ -29,7 +29,7 @@ public sealed class OptiScalerSourceValidator(IFileVersionInfoProvider versionIn
             // must never reach the replacement flow: DetectFamily(Unsupported)
             // there would otherwise get silently mislabeled as "0.10" and
             // replace targets it isn't actually compatible with.
-            if (OptiBinaryRules.DetectFamily(version) == OptiSchemaFamily.Unsupported) return new(null, $"OptiScaler {version} is not supported. Select a 0.9.x or 0.10.x binary.");
+            if (OptiBinaryRules.DetectFamily(version) == OptiSchemaFamily.Unsupported) return new(null, $"OptiScaler {version} is not supported. Select a 0.9.x, 0.10.x, or 10.0.x binary.");
             using var hashStream = File.Open(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
             return new(new(fullPath, version, metadata.ProductVersion, file.Length, SHA256.HashData(hashStream)), null);
         }

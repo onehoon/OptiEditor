@@ -22,10 +22,12 @@ public static class OptiBinaryRules
     public static OptiSchemaFamily DetectFamily(FileVersionData versionInfo) => DetectFamily(versionInfo.NumericVersion);
 
     public static OptiSchemaFamily DetectFamily(Version version) =>
-        version.Major != 0 ? OptiSchemaFamily.Unsupported : version.Minor switch
+        (version.Major, version.Minor) switch
         {
-            9 => OptiSchemaFamily.V09,
-            10 => OptiSchemaFamily.V10,
+            (0, 9) => OptiSchemaFamily.V09,
+            // Upstream changed the file-version scheme from 0.10.x to 10.0.x.
+            // Both represent the same OptiScaler schema family.
+            (0, 10) or (10, 0) => OptiSchemaFamily.V10,
             _ => OptiSchemaFamily.Unsupported
         };
 

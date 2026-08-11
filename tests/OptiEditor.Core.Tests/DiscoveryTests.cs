@@ -60,11 +60,11 @@ public sealed class DiscoveryTests
     [Fact] public void System_version_dll_and_missing_metadata_are_rejected() { Assert.False(OptiBinaryRules.IsOptiScaler(VersionData() with { ProductName = null, OriginalFilename = "version.dll" })); Assert.False(OptiBinaryRules.IsOptiScaler(VersionData() with { ProductName = null })); }
 
     [Theory]
-    [InlineData(0, 9, OptiSchemaFamily.V09)][InlineData(0, 10, OptiSchemaFamily.V10)][InlineData(0, 8, OptiSchemaFamily.Unsupported)][InlineData(0, 11, OptiSchemaFamily.Unsupported)][InlineData(1, 0, OptiSchemaFamily.Unsupported)]
+    [InlineData(0, 9, OptiSchemaFamily.V09)][InlineData(0, 10, OptiSchemaFamily.V10)][InlineData(10, 0, OptiSchemaFamily.V10)][InlineData(0, 8, OptiSchemaFamily.Unsupported)][InlineData(0, 11, OptiSchemaFamily.Unsupported)][InlineData(1, 0, OptiSchemaFamily.Unsupported)][InlineData(10, 1, OptiSchemaFamily.Unsupported)]
     public void Version_family_is_detected_from_numeric_parts(int major, int minor, OptiSchemaFamily expected) => Assert.Equal(expected, OptiBinaryRules.DetectFamily(VersionData(major, minor)));
 
     [Theory]
-    [InlineData(0, 9, OptiSchemaFamily.V09)][InlineData(0, 10, OptiSchemaFamily.V10)][InlineData(0, 8, OptiSchemaFamily.Unsupported)][InlineData(1, 0, OptiSchemaFamily.Unsupported)]
+    [InlineData(0, 9, OptiSchemaFamily.V09)][InlineData(0, 10, OptiSchemaFamily.V10)][InlineData(10, 0, OptiSchemaFamily.V10)][InlineData(0, 8, OptiSchemaFamily.Unsupported)][InlineData(1, 0, OptiSchemaFamily.Unsupported)][InlineData(10, 1, OptiSchemaFamily.Unsupported)]
     public void Version_family_is_detected_from_a_plain_Version(int major, int minor, OptiSchemaFamily expected) => Assert.Equal(expected, OptiBinaryRules.DetectFamily(new Version(major, minor)));
 
     [Fact]
