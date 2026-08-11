@@ -13,7 +13,7 @@ public sealed class SchemaTests
         var v09 = resolver.Resolve(OptiSchemaFamily.V09);
         var v10 = resolver.Resolve(OptiSchemaFamily.V10);
         Assert.Equal(288, v09.Settings.Count);
-        Assert.Equal(305, v10.Settings.Count);
+        Assert.Equal(306, v10.Settings.Count);
         Assert.NotNull(v09.FindById("Plugins.LoadAsiPlugins"));
         Assert.NotNull(v10.FindById("Magnifier.Enabled"));
         Assert.Null(v09.FindById("DLSSG.InterpolationCount"));
@@ -25,7 +25,7 @@ public sealed class SchemaTests
     {
         var schema = new Opti10SchemaProvider();
         Assert.Equal(SettingValueKind.Boolean, schema.FindById("Plugins.LoadAsiPlugins")!.ValueKind);
-        Assert.Equal(SettingValueKind.Integer, schema.FindById("FrameGen.AllowedFrameAhead")!.ValueKind);
+        Assert.Equal(SettingValueKind.Enum, schema.FindById("FrameGen.AllowedFrameAhead")!.ValueKind);
         Assert.Equal(SettingValueKind.Double, schema.FindById("FSR.VerticalFov")!.ValueKind);
         Assert.Equal(SettingValueKind.String, schema.FindById("Menu.TTFFontPath")!.ValueKind);
         var forceModel = schema.FindById("FSR.Fsr4ForceModel")!;
@@ -50,7 +50,8 @@ public sealed class SchemaTests
         Assert.Equal(["fsr22", "fsr31", "xess", "xess_12", "fsr21_12", "fsr22_12", "ffx_12", "dlss"], schema.FindById("Upscalers.Dx11Upscaler")!.Options.Select(x => x.Value));
         Assert.Equal(["dlssg", "nvngxfg", "fsrfg", "upscaler", "fsrfg30"], schema.FindById("FrameGen.FGInput")!.Options.Select(x => x.Value));
         Assert.DoesNotContain(schema.FindById("FrameGen.FGInput")!.Options, x => x.Value.Equals("nukems", StringComparison.OrdinalIgnoreCase));
-        Assert.Equal(["fsrfg", "xefg", "nvngxfg", "dlssg", "dlssgwithnvngx"], schema.FindById("FrameGen.FGOutput")!.Options.Select(x => x.Value));
+        Assert.Equal(["fsrfg", "xefg", "dlssg"], schema.FindById("FrameGen.FGOutput")!.Options.Select(x => x.Value));
+        Assert.Equal(["None", "Nukems", "Arturs", "FFX"], schema.FindById("FrameGen.FGNvngxReplacement")!.Options.Select(x => x.Value));
 
         foreach (var id in new[] { "Upscalers.Dx11Upscaler", "Upscalers.Dx12Upscaler", "Upscalers.VulkanUpscaler", "FrameGen.FGInput", "FrameGen.FGOutput" }) Assert.Equal(SettingValueKind.Enum, v09.FindById(id)!.ValueKind);
         foreach (var id in new[] { "Upscalers.Dx11Upscaler", "Upscalers.Dx12Upscaler", "Upscalers.VulkanUpscaler", "FrameGen.FGInput", "FrameGen.FGOutput", "Sharpness.Shader" }) Assert.Equal(SettingValueKind.Enum, schema.FindById(id)!.ValueKind);
@@ -121,8 +122,7 @@ public sealed class SchemaTests
         // the schema generator's clamp-pattern matcher misses that shape, so
         // this range is added by hand in OptiSchemaOverlays.
         var allowedFrameAhead = schema.FindById("FrameGen.AllowedFrameAhead")!;
-        Assert.Equal(1, allowedFrameAhead.Minimum);
-        Assert.Equal(3, allowedFrameAhead.Maximum);
+        Assert.Equal(["1", "2", "3"], allowedFrameAhead.Options.Select(x => x.Value));
         Assert.False(SettingValidator.Validate(allowedFrameAhead, "0").IsValid);
         Assert.False(SettingValidator.Validate(allowedFrameAhead, "4").IsValid);
         Assert.True(SettingValidator.Validate(allowedFrameAhead, "1").IsValid);
