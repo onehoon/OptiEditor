@@ -1,3 +1,4 @@
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using OptiEditor.App.ViewModels;
 using OptiEditor.Core.Discovery;
@@ -136,7 +137,13 @@ public sealed partial class OptiScalerUpdatePage : Page
         var summary = $"Selected: {results.Count}\nReplaced: {replaced}\nSkipped: {results.Count(x => x.Status == OptiScalerReplacementStatus.Skipped)}\nFailed: {results.Count(x => x.Status == OptiScalerReplacementStatus.Failed)}\nCanceled: {results.Count(x => x.Status == OptiScalerReplacementStatus.Canceled)}\n\n"
             + string.Join("\n", results.Select(x => $"{x.GameDisplayName ?? x.InstallDirectory} — {x.TargetFileName}: {x.Status}{(x.UserMessage is null ? "" : $" — {x.UserMessage}")}"))
             + (crossedFamiliesSuccessfully ? "\n\nReview the OptiScaler settings after changing version families." : "");
-        await new ContentDialog { XamlRoot = XamlRoot, Title = title, Content = summary, CloseButtonText = "Close" }.ShowAsync();
+        await new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = title,
+            Content = new ScrollViewer { Content = new TextBlock { Text = summary, TextWrapping = TextWrapping.Wrap }, MaxHeight = 420 },
+            CloseButtonText = "Close"
+        }.ShowAsync();
     }
 
     private static string FamilyLabel(OptiSchemaFamily family) => family switch
