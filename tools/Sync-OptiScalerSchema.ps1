@@ -10,7 +10,8 @@ param(
     # "did anything change" diff check on its own.
     [string] $V09Commit,
     [string] $V10Commit,
-    [string] $OutputPath = "src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs"
+    [string] $OutputPath = "src/OptiEditor.Core/Schema/GeneratedOptiScalerSchemaCatalog.cs",
+    [switch] $V10Only
 )
 
 Set-StrictMode -Version Latest
@@ -50,11 +51,24 @@ function Parse-SourceMetadata([string] $Config, [string] $ConfigHeader, [string]
         $kind = $match.Groups['kind'].Value
         $id = "$($match.Groups['section'].Value)`0$($match.Groups['key'].Value.Trim())"
         $known.Add($id) | Out-Null
-        $reads[$id] = [pscustomobject]@{ Kind = $kind; EnumType = $match.Groups['enum'].Value; Offset = $match.Index; Property = $null; IsDiscreteChoice = $false; Options = @(); Minimum = $null; Maximum = $null }
+        # Config::readUInt calls std::stoi into a signed int before converting
+        # to uint32_t. Its accepted raw range is therefore still Int32, with
+        # negative decimal inputs wrapping on conversion.
+        $minimum = if ($kind -in @('Int', 'UInt')) { [int]::MinValue } else { $null }
+        $maximum = if ($kind -in @('Int', 'UInt')) { [int]::MaxValue } else { $null }
+        $reads[$id] = [pscustomobject]@{ Kind = $kind; EnumType = $match.Groups['enum'].Value; Offset = $match.Index; IsOpenChoice = $false; Options = @(); Minimum = $minimum; Maximum = $maximum; SourceReader = "read$kind" }
     }
 
     foreach ($match in [regex]::Matches($Config, 'ini\.SetValue\(\s*"(?<section>[^"]+)"\s*,\s*"(?<key>[^"]+)"')) {
         $known.Add("$($match.Groups['section'].Value)`0$($match.Groups['key'].Value.Trim())") | Out-Null
+    }
+
+    # Upscaler selections use a helper that receives only the INI key. Keep
+    # those values open because custom provider names are valid at runtime.
+    foreach ($match in [regex]::Matches($Config, 'readUpscaler\(\s*"(?<key>[^"]+)"')) {
+        $id = "Upscalers`0$($match.Groups['key'].Value)"
+        $known.Add($id) | Out-Null
+        $reads[$id] = [pscustomobject]@{ Kind = 'String'; EnumType = ''; Offset = $match.Index; IsOpenChoice = $true; Options = @(); Minimum = $null; Maximum = $null; SourceReader = 'readUpscaler' }
     }
 
     $enumSource = "$ConfigHeader`n$OptiTypesHeader"
@@ -86,8 +100,6 @@ function Parse-SourceMetadata([string] $Config, [string] $ConfigHeader, [string]
         $nextRead = $Config.IndexOf('read', $metadata.Offset + 4, [StringComparison]::Ordinal)
         $length = if ($nextRead -lt 0) { $Config.Length - $metadata.Offset } else { $nextRead - $metadata.Offset }
         $remaining = $Config.Substring($metadata.Offset, $length)
-        $property = [regex]::Match($remaining, '(?<property>\w+)\.set_from_config')
-        if ($property.Success) { $metadata.Property = $property.Groups['property'].Value }
         if ($metadata.Kind -like 'Enum<*') {
             $metadata.Options = Get-EnumOptions $metadata.EnumType
             $metadata.Minimum = 0
@@ -145,29 +157,6 @@ function Get-IniStringChoices([string] $SourceComment) {
     return $choices.ToArray()
 }
 
-function Apply-MenuDiscreteChoices($Reads, [string] $MenuSource) {
-    $choicesByProperty = @{}
-    $arrayPattern = 'const\s+char\*\s+(?<name>\w+)\[\]\s*=\s*\{(?<values>.*?)\};'
-    foreach ($array in [regex]::Matches($MenuSource, $arrayPattern, [Text.RegularExpressions.RegexOptions]::Singleline)) {
-        $tail = $MenuSource.Substring($array.Index, [Math]::Min(1800, $MenuSource.Length - $array.Index))
-        $property = [regex]::Match($tail, 'config->(?<property>\w+)')
-        if (-not $property.Success) { continue }
-        $options = [System.Collections.Generic.List[object]]::new()
-        foreach ($value in [regex]::Matches($array.Groups['values'].Value, '"(?<value>-?\d+(?:\.\d+)?)"')) {
-            $options.Add([pscustomobject]@{ Value = $value.Groups['value'].Value; Label = $value.Groups['value'].Value })
-        }
-        if ($options.Count -ge 2) { $choicesByProperty[$property.Groups['property'].Value] = $options.ToArray() }
-    }
-
-    foreach ($metadata in $Reads.Values) {
-        if ($metadata.Kind -ne 'Float' -or [string]::IsNullOrWhiteSpace($metadata.Property)) { continue }
-        if ($choicesByProperty.ContainsKey($metadata.Property)) {
-            $metadata.Options = $choicesByProperty[$metadata.Property]
-            $metadata.IsDiscreteChoice = $true
-        }
-    }
-}
-
 function Get-Entries([string] $Ref) {
     $ini = Get-UpstreamText $Ref "OptiScaler.ini"
     $config = Get-UpstreamText $Ref "OptiScaler/Config.cpp"
@@ -175,8 +164,8 @@ function Get-Entries([string] $Ref) {
     $typesHeader = Get-OptionalUpstreamText $Ref "OptiScaler/OptiTypes.h"
     $typesSource = Get-OptionalUpstreamText $Ref "OptiScaler/OptiTypes.cpp"
     $metadata = Parse-SourceMetadata $config $header $typesHeader $typesSource
-    $menuSource = Get-UpstreamText $Ref "OptiScaler/menu/menu_common.cpp"
-    Apply-MenuDiscreteChoices $metadata.Reads $menuSource
+    # The menu's finite combo contents are not necessarily the INI parser's
+    # accepted domain (for example, Menu.Scale remains a continuous float).
 
     $section = $null; $comments = [System.Collections.Generic.List[string]]::new(); $entries = [System.Collections.Generic.List[object]]::new(); $order = 0
     foreach ($line in $ini -split "`r?`n") {
@@ -209,12 +198,12 @@ function Get-Entries([string] $Ref) {
             $type = switch -Regex ($kind) {
                 '^Bool$' { 'Boolean'; break }
                 '^(Int|UInt)$' { if ($options.Count -gt 0) { 'Enum' } else { 'Integer' }; break }
-                '^Float$' { if ($source.IsDiscreteChoice) { 'Enum' } else { 'Double' }; break }
+                '^Float$' { 'Double'; break }
                 '^Enum<' { 'Enum'; break }
-                '^String$' { if ($options.Count -gt 0) { 'Enum' } else { 'String' }; break }
+                '^String$' { if ($options.Count -gt 0 -and $null -ne $source -and -not $source.IsOpenChoice) { 'Enum' } else { 'String' }; break }
                 default { 'String'; break }
             }
-            $entries.Add([pscustomobject]@{ Section = $section; Key = $key; Default = $default; SourceComment = $sourceComment; Type = $type; Order = $order++; Minimum = if ($null -eq $source) { $null } else { $source.Minimum }; Maximum = if ($null -eq $source) { $null } else { $source.Maximum }; Options = $options })
+            $entries.Add([pscustomobject]@{ Section = $section; Key = $key; Default = $default; SourceComment = $sourceComment; Type = $type; Order = $order++; Minimum = if ($null -eq $source) { $null } else { $source.Minimum }; Maximum = if ($null -eq $source) { $null } else { $source.Maximum }; Options = $options; OptionsAreSuggestions = if ($null -eq $source) { $false } else { $source.IsOpenChoice }; SourceReader = if ($null -eq $source) { '' } else { $source.SourceReader } })
         }
     }
     return $entries
@@ -225,25 +214,42 @@ function Render-Entries($Entries) {
         $options = if ($_.Options.Count -eq 0) { '[]' } else { '[' + (($_.Options | ForEach-Object { "new(`"$(Escape-CSharp $_.Value)`", `"$(Escape-CSharp $_.Label)`")" }) -join ', ') + ']' }
         $minimum = Format-CSharpNumber $_.Minimum
         $maximum = Format-CSharpNumber $_.Maximum
-        "        new(`"$(Escape-CSharp $_.Section).$(Escape-CSharp $_.Key)`", new IniKey(`"$(Escape-CSharp $_.Section)`", `"$(Escape-CSharp $_.Key)`"), `"$(Escape-CSharp $_.Key)`", string.Empty, `"$(Escape-CSharp $_.Section)`", $($_.Order), SettingValueKind.$($_.Type), true, $options, `"$(Escape-CSharp $_.Default)`", $minimum, $maximum, SourceComment: `"$(Escape-CSharp $_.SourceComment)`"),"
+        $suggestions = if ($_.OptionsAreSuggestions) { 'true' } else { 'false' }
+        "        new(`"$(Escape-CSharp $_.Section).$(Escape-CSharp $_.Key)`", new IniKey(`"$(Escape-CSharp $_.Section)`", `"$(Escape-CSharp $_.Key)`"), `"$(Escape-CSharp $_.Key)`", string.Empty, `"$(Escape-CSharp $_.Section)`", $($_.Order), SettingValueKind.$($_.Type), true, $options, `"$(Escape-CSharp $_.Default)`", $minimum, $maximum, SourceComment: `"$(Escape-CSharp $_.SourceComment)`", OptionsAreSuggestions: $suggestions, SourceReader: `"$(Escape-CSharp $_.SourceReader)`"),"
     }) -join "`n")
 }
 
-$v09Commit = if ($V09Commit) { $V09Commit } else { Get-Commit $V09Ref }
+$v09Commit = if ($V10Only) { $null } elseif ($V09Commit) { $V09Commit } else { Get-Commit $V09Ref }
 $v10Commit = if ($V10Commit) { $V10Commit } else { Get-Commit $V10Ref }
 # Fetch every upstream file for a pinned commit SHA, not the floating branch
-# name. Get-Entries makes several independent raw.githubusercontent.com
-# requests (OptiScaler.ini, Config.cpp/h, OptiTypes.h/cpp, menu_common.cpp);
-# resolving each against the live branch tip let a commit landing upstream
-# mid-run mix pre- and post-change content into one non-reproducible
-# generation, which is what made the daily/manual schema checks flap.
-$v09 = Get-Entries $v09Commit
+# name. Resolving files independently against the live branch tip could mix
+# pre- and post-change content into one non-reproducible generation.
+$v09 = if ($V10Only) { @() } else { Get-Entries $v09Commit }
 $v10 = Get-Entries $v10Commit
+
+if ($V10Only) {
+    $fullOutput = [IO.Path]::GetFullPath((Join-Path (Get-Location) $OutputPath))
+    if (-not [IO.File]::Exists($fullOutput)) { throw "V10-only refresh requires an existing catalog so the V09 block can be preserved: $fullOutput" }
+    $existing = [IO.File]::ReadAllText($fullOutput)
+    $v09Pattern = '(?s)private static readonly IReadOnlyList<SettingDefinition> V09\s*=\s*\[.*?\r?\n\s*\];'
+    $v10Pattern = '(?s)(private static readonly IReadOnlyList<SettingDefinition> V10\s*=\s*\[).*?(\r?\n\s*\];)'
+    $v09Before = [regex]::Match($existing, $v09Pattern)
+    $v10Match = [regex]::Match($existing, $v10Pattern)
+    if (-not $v09Before.Success -or -not $v10Match.Success) { throw 'Could not locate both generated catalog blocks.' }
+    $replacement = $v10Match.Groups[1].Value + "`n" + (Render-Entries $v10) + $v10Match.Groups[2].Value
+    $content = [regex]::Replace($existing, $v10Pattern, [System.Text.RegularExpressions.MatchEvaluator]{ param($match) $replacement }, 1)
+    $v09After = [regex]::Match($content, $v09Pattern)
+    if (-not $v09After.Success -or $v09After.Value -cne $v09Before.Value) { throw 'V09 catalog changed during V10-only refresh.' }
+    $content = [regex]::Replace($content, '(?m)^// Source: (.+)$', { param($match) $match.Value -replace '; master @ [0-9a-f]+', "; $V10Ref @ $v10Commit" }, 1)
+    [IO.File]::WriteAllText($fullOutput, $content.Replace("`r`n", "`n"), [Text.UTF8Encoding]::new($false))
+    Write-Host "Refreshed $fullOutput ($($v10.Count) 0.10 keys); preserved the V09 catalog block."
+    exit 0
+}
 
 $content = @"
 // <auto-generated />
 // Source: $Repository ($V09Ref @ $v09Commit; $V10Ref @ $v10Commit)
-// Generated from the upstream root OptiScaler.ini and its Config.cpp reader/SaveIni logic.
+// Generated from the upstream root OptiScaler.ini and Config.cpp reader/SaveIni logic.
 using OptiEditor.Core.Ini;
 using OptiEditor.Core.Models;
 

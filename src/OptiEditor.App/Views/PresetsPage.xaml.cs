@@ -90,7 +90,20 @@ public sealed partial class PresetsPage : Page
         if (selected.Length == 0) { ViewModel.StatusText = "Select at least one game."; return; }
         var schema = AppServices.Schemas.Resolve(preset.Family);
         var entries = preset.Entries.ToArray();
-        var lines = entries.Select(x => $"[{x.SettingId}] = {x.RawValue}").ToArray();
+        var supportedEntries = entries
+            .Select(entry => (Entry: entry, Definition: schema.FindById(entry.SettingId)))
+            .Where(x => x.Definition is not null)
+            .Select(x => (x.Entry, Definition: x.Definition!))
+            .ToArray();
+        var unsupportedEntryCount = entries.Length - supportedEntries.Length;
+        if (supportedEntries.Length == 0)
+        {
+            ViewModel.StatusText = "This preset contains no settings supported by the current schema. Its stored entries were preserved.";
+            return;
+        }
+        var lines = entries.Select(entry => schema.FindById(entry.SettingId) is { } definition
+            ? $"[{definition.IniKey.Section}] {definition.IniKey.Name} = {entry.RawValue}"
+            : $"[Unknown] {entry.SettingId} = {entry.RawValue}").ToArray();
         if (!await SaveReviewDialog.ConfirmAsync(XamlRoot, "Review preset application", $"Apply '{preset.Name}' to {selected.Length} game(s).", lines)) return;
         _isApplying = true; ApplySelectedButton.IsEnabled = false; BackFromApplyButton.IsEnabled = false; ApplySearchBox.IsEnabled = false; ApplyAllCheckBox.IsEnabled = false; ApplyPresetPage.IsHitTestVisible = false;
         var applied = 0; var failed = 0;
@@ -99,15 +112,16 @@ public sealed partial class PresetsPage : Page
             try
             {
                 var session = await new IniEditorSessionService(AppServices.IniFiles).OpenSessionAsync(game); var candidate = session.Document.Clone();
-                var patchResults = entries.Select(entry => schema.FindById(entry.SettingId) is { } definition ? candidate.ApplyPatch(new IniPatch(definition.IniKey, entry.RawValue)) : null).ToArray();
-                if (patchResults.Any(x => x is null || x.Error is not null)) { failed++; continue; }
+                var patchResults = supportedEntries.Select(x => candidate.ApplyPatch(new IniPatch(x.Definition.IniKey, x.Entry.RawValue))).ToArray();
+                if (patchResults.Any(x => x.Error is not null)) { failed++; continue; }
                 var result = await AppServices.IniFiles.SaveAsync(candidate, session.Snapshot); if (result.Success) applied++; else failed++;
             }
             catch (Exception ex) { AppServices.Logger.Error($"Preset application failed: {game.InstallDirectory}", ex); failed++; }
         }
         _isApplying = false; ApplySelectedButton.IsEnabled = true; BackFromApplyButton.IsEnabled = true; ApplySearchBox.IsEnabled = true; ApplyAllCheckBox.IsEnabled = true; ApplyPresetPage.IsHitTestVisible = true;
-        ViewModel.StatusText = $"Preset applied to {applied} of {selected.Length} game(s). Failed: {failed}.";
-        var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = "Preset application complete", Content = $"Applied: {applied}\nFailed: {failed}\nTotal selected: {selected.Length}", CloseButtonText = "OK", DefaultButton = ContentDialogButton.Close };
+        var skippedText = unsupportedEntryCount == 0 ? string.Empty : $" Unsupported legacy entries preserved in the preset and skipped: {unsupportedEntryCount}.";
+        ViewModel.StatusText = $"Preset applied to {applied} of {selected.Length} game(s). Failed: {failed}.{skippedText}";
+        var dialog = new ContentDialog { XamlRoot = XamlRoot, Title = "Preset application complete", Content = $"Applied: {applied}\nFailed: {failed}\nUnsupported entries skipped: {unsupportedEntryCount}\nTotal selected: {selected.Length}", CloseButtonText = "OK", DefaultButton = ContentDialogButton.Close };
         await dialog.ShowAsync();
     }
 

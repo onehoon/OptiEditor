@@ -22,4 +22,8 @@
     <ProjectReference Include="..\..\src\OptiEditor.Core\OptiEditor.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\schema\optiscaler-v10-master.json" Link="Schema\optiscaler-v10-master.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
