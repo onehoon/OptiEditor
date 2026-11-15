@@ -50,11 +50,11 @@ public sealed class GameNameCatalog : IGameNameCatalog
         lock (_gate) _entries = replacement;
     }
 
-    public static IReadOnlyList<GameNameCatalogEntry> ParseRuntimeJson(string json)
+    public static IReadOnlyList<GameNameCatalogEntry> ParseGameMasterJson(string json)
     {
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
-        if (root.GetProperty("schema_version").GetInt32() != 1) throw new JsonException("Unsupported runtime schema version.");
+        if (root.GetProperty("schema_version").GetInt32() != 1) throw new JsonException("Unsupported game master schema version.");
         var games = root.GetProperty("data").GetProperty("game_master");
         var entries = new List<GameNameCatalogEntry>();
         foreach (var game in games.EnumerateArray())

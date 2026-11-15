@@ -54,7 +54,7 @@ public sealed class DiscoveryTests
     [Fact]
     public void Runtime_game_master_parser_matches_required_files_and_uses_english_names()
     {
-        var entries = GameNameCatalog.ParseRuntimeJson("""
+        var entries = GameNameCatalog.ParseGameMasterJson("""
             {"schema_version":1,"data":{"game_master":[
               {"game_name_en":"Shared Game","match_exe":"game.exe|marker.dll"},
               {"game_name_en":"More Specific Game","match_exe":"game.exe|marker.dll|specific.dll"}
