@@ -62,7 +62,7 @@ public static class AppServices
     private static HttpClient CreateRuntimeClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("OptiScaler", "v0.0.0"));
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("OptiClick", "0.0.0"));
         return client;
     }
 
