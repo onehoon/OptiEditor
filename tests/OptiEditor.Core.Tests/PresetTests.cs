@@ -9,9 +9,9 @@ public sealed class PresetTests
     public void Built_in_catalog_contains_the_default_presets()
     {
         var presets = new BuiltInPresetProvider().GetAll();
-        Assert.Equal(12, presets.Count);
-        Assert.Contains(presets, x => x.Name == "FSR4.1.1 for AMD RDNA2" && x.Family == OptiSchemaFamily.V10);
-        Assert.Contains(presets, x => x.Name == "FSR4.1.1 for Opti 0.9.x" && x.Family == OptiSchemaFamily.V09);
+        Assert.Equal(10, presets.Count);
+        Assert.DoesNotContain(presets, x => x.Name == "FSR4.1.1 for AMD RDNA2");
+        Assert.DoesNotContain(presets, x => x.Name == "FSR4.1.1 for Opti 0.9.x");
         Assert.Contains(presets, x => x.Name == "DLSSG to XeFG" && x.Family == OptiSchemaFamily.V09);
         Assert.Contains(presets, x => x.Name == "DLSSG to XeFG" && x.Family == OptiSchemaFamily.V10);
     }
