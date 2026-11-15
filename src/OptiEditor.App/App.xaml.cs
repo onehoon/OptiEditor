@@ -99,8 +99,9 @@ public partial class App : Application
         try
         {
             await OptiEditor.App.Services.AppServices.RefreshGameNamesAsync();
-            await OptiEditor.App.Services.AppServices.Installations.ScanAllAsync();
         }
+        catch (Exception ex) { OptiEditor.App.Services.AppServices.Logger.Error("Startup installation scan failed.", ex); }
+        try { await OptiEditor.App.Services.AppServices.Installations.ScanAllAsync(); }
         catch (Exception ex) { OptiEditor.App.Services.AppServices.Logger.Error("Startup installation scan failed.", ex); }
     }
 }

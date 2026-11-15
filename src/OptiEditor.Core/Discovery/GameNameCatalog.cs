@@ -33,11 +33,12 @@ public sealed class GameNameCatalog : IGameNameCatalog
         lock (_gate)
         {
             return _entries
-                .Where(entry => entry.RequiredFiles.Contains(normalizedExecutable, StringComparer.OrdinalIgnoreCase))
-                .Where(entry => entry.RequiredFiles.All(available.Contains))
-                .OrderByDescending(entry => entry.RequiredFiles.Count)
-                .ThenBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(entry => entry.Name)
+                .Select((entry, index) => (entry, index))
+                .Where(item => item.entry.RequiredFiles.Contains(normalizedExecutable, StringComparer.OrdinalIgnoreCase))
+                .Where(item => item.entry.RequiredFiles.All(available.Contains))
+                .OrderByDescending(item => item.entry.RequiredFiles.Count)
+                .ThenBy(item => item.index)
+                .Select(item => item.entry.Name)
                 .FirstOrDefault();
         }
     }
@@ -54,8 +55,16 @@ public sealed class GameNameCatalog : IGameNameCatalog
     {
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
-        if (root.GetProperty("schema_version").GetInt32() != 1) throw new JsonException("Unsupported game master schema version.");
-        var games = root.GetProperty("data").GetProperty("game_master");
+        JsonElement games;
+        if (root.ValueKind == JsonValueKind.Array)
+        {
+            games = root;
+        }
+        else
+        {
+            if (root.GetProperty("schema_version").GetInt32() != 1) throw new JsonException("Unsupported game master schema version.");
+            games = root.GetProperty("data").GetProperty("game_master");
+        }
         var entries = new List<GameNameCatalogEntry>();
         foreach (var game in games.EnumerateArray())
         {

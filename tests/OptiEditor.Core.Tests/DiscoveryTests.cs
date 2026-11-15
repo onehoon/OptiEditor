@@ -55,10 +55,10 @@ public sealed class DiscoveryTests
     public void Runtime_game_master_parser_matches_required_files_and_uses_english_names()
     {
         var entries = GameNameCatalog.ParseGameMasterJson("""
-            {"schema_version":1,"data":{"game_master":[
+            [
               {"game_name_en":"Shared Game","match_exe":"game.exe|marker.dll"},
               {"game_name_en":"More Specific Game","match_exe":"game.exe|marker.dll|specific.dll"}
-            ]}}
+            ]
             """);
         var catalog = new GameNameCatalog();
         catalog.Replace(entries);
@@ -72,6 +72,17 @@ public sealed class DiscoveryTests
             catalog,
             ["game.exe", "marker.dll"]);
         Assert.Equal("Shared Game", selected.DisplayName);
+    }
+
+    [Fact]
+    public void Remote_game_name_wins_over_embedded_name_and_embedded_name_remains_fallback()
+    {
+        var embedded = GameMasterNameMap.Entries.First();
+        var catalog = new GameNameCatalog();
+        catalog.Replace([new("Remote replacement", [embedded.Key])]);
+
+        Assert.Equal("Remote replacement", catalog.Find(embedded.Key));
+        Assert.Equal("Kingdom Come: Deliverance II", catalog.Find("KingdomCome.exe"));
     }
 
     [Theory]
