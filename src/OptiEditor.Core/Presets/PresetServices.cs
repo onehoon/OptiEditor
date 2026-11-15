@@ -51,7 +51,19 @@ public sealed class PresetValidationService(OptiSchemaResolver resolver)
         if (preset.Entries.Count == 0 || preset.Entries.Select(x => x.SettingId).Distinct(StringComparer.OrdinalIgnoreCase).Count() != preset.Entries.Count) return "A preset must contain unique settings.";
         if (existing?.Any(x => x.Id != preset.Id && x.Family == preset.Family && string.Equals(x.Name, preset.Name.Trim(), StringComparison.OrdinalIgnoreCase)) == true) return "A preset with this name already exists for this version family.";
         var schema = resolver.Resolve(preset.Family);
-        foreach (var entry in preset.Entries) if (schema.FindById(entry.SettingId) is null || !SettingValidator.Validate(schema.FindById(entry.SettingId)!, entry.RawValue).IsValid) return $"Invalid preset entry: {entry.SettingId}.";
+        var originalEntries = existing?.FirstOrDefault(x => x.Id == preset.Id)?.Entries
+            .ToDictionary(x => x.SettingId, x => x.RawValue, StringComparer.OrdinalIgnoreCase) ?? [];
+        foreach (var entry in preset.Entries)
+        {
+            var definition = schema.FindById(entry.SettingId);
+            var isUnchangedLegacyValue = originalEntries.TryGetValue(entry.SettingId, out var originalRawValue)
+                && string.Equals(originalRawValue, entry.RawValue, StringComparison.Ordinal);
+            if (definition is null || !SettingValidator.Validate(definition, entry.RawValue).IsValid)
+            {
+                if (isUnchangedLegacyValue) continue;
+                return $"Invalid preset entry: {entry.SettingId}.";
+            }
+        }
         return null;
     }
 }

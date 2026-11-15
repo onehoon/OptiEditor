@@ -14,7 +14,7 @@ public static class SettingValueControlFactory
             SettingValueKind.Boolean => new AutoBooleanSettingControl(currentRawValue, changed),
             SettingValueKind.Enum => new EnumSettingControl(definition, currentRawValue, changed),
             SettingValueKind.Shortcut => new ShortcutSettingControl(currentRawValue, changed),
-            _ => new AutoNumberSettingControl(currentRawValue, changed, inputHint ?? definition.Description)
+            _ => new AutoNumberSettingControl(definition, currentRawValue, changed, inputHint ?? definition.Description)
         };
 }
 
@@ -99,7 +99,11 @@ public sealed class EnumSettingControl : SettingControlBase
     {
         var combo = new ComboBox { MinWidth = 220 };
         if (definition.SupportsAuto) combo.Items.Add(new ComboBoxItem { Tag = "auto", Content = "Auto" });
-        foreach (var option in definition.Options) combo.Items.Add(new ComboBoxItem { Tag = option.Value, Content = option.Label });
+        foreach (var option in definition.Options)
+        {
+            var label = option.Condition is null ? option.Label : $"{option.Label} (when {option.Condition})";
+            combo.Items.Add(new ComboBoxItem { Tag = option.Value, Content = label });
+        }
         var isAuto = definition.SupportsAuto && string.Equals(currentRawValue, "auto", StringComparison.OrdinalIgnoreCase);
         if (!isAuto && !definition.Options.Any(x => string.Equals(x.Value, currentRawValue, StringComparison.OrdinalIgnoreCase))) combo.Items.Add(new ComboBoxItem { Tag = currentRawValue, Content = $"Unknown (preserved): {currentRawValue}" });
         combo.SelectedItem = combo.Items.OfType<ComboBoxItem>().FirstOrDefault(x => string.Equals((string)x.Tag, currentRawValue, StringComparison.OrdinalIgnoreCase));
@@ -110,8 +114,18 @@ public sealed class EnumSettingControl : SettingControlBase
 
 public sealed class AutoNumberSettingControl : SettingControlBase
 {
-    public AutoNumberSettingControl(string currentRawValue, Action<string> changed, string inputHint) : base(currentRawValue, changed)
+    public AutoNumberSettingControl(SettingDefinition definition, string currentRawValue, Action<string> changed, string? inputHint) : base(currentRawValue, changed)
     {
+        if (definition.OptionsAreSuggestions && definition.Options.Count > 0)
+        {
+            var note = new TextBlock
+            {
+                Text = $"Suggestions: {string.Join(", ", definition.Options.Select(x => x.Value))}. You can enter another value.",
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = .75
+            };
+            Children.Add(note);
+        }
         var box = new TextBox { Text = currentRawValue, PlaceholderText = inputHint, MinWidth = 220, VerticalContentAlignment = VerticalAlignment.Center };
         box.TextChanged += (_, _) => SetValue(box.Text); Children.Add(box);
     }

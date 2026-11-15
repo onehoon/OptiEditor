@@ -1,5 +1,6 @@
 using OptiEditor.Core.Models;
 using OptiEditor.Core.Presets;
+using OptiEditor.Core.Schema;
 
 namespace OptiEditor.Core.Tests;
 
@@ -43,6 +44,24 @@ public sealed class PresetTests
             await Assert.ThrowsAsync<PresetStoreException>(() => store.LoadAsync());
         }
         finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+    }
+
+    [Fact]
+    public void Editing_a_preset_preserves_unchanged_legacy_entries_without_migration()
+    {
+        var oldPreset = Preset(OptiSchemaFamily.V10,
+        [
+            new("Legacy.RemovedSetting", "provider-value"),
+            new("Menu.Scale", "2.5")
+        ]);
+        var validator = new PresetValidationService(new OptiSchemaResolver());
+
+        Assert.Null(validator.Validate(oldPreset, [oldPreset]));
+        Assert.NotNull(validator.Validate(oldPreset with
+        {
+            Entries = [new("Legacy.RemovedSetting", "changed")]
+        }, [oldPreset]));
+        Assert.NotNull(validator.Validate(Preset(OptiSchemaFamily.V10, [new("Legacy.RemovedSetting", "new")])));
     }
 
     private static PresetDefinition Preset(OptiSchemaFamily family, IReadOnlyList<PresetEntry> entries) =>
