@@ -135,5 +135,7 @@ public static class GameMasterNameMap
 
     public static string? Find(string? executableName) =>
         executableName is not null && Names.TryGetValue(Path.GetFileName(executableName), out var name) ? name : null;
+
+    public static IReadOnlyDictionary<string, string> Entries => Names;
 }
 

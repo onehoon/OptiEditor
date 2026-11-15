@@ -5,6 +5,7 @@ using OptiEditor.Core.Ini;
 using OptiEditor.Core.Schema;
 using OptiEditor.Core.Presets;
 using OptiEditor.Core.OptiScalerUpdate;
+using System.Net.Http.Headers;
 
 namespace OptiEditor.App.Services;
 
@@ -16,7 +17,9 @@ public static class AppServices
 
     private static readonly Lazy<IDiagnosticLogger> LoggerInstance = new(() => new FileDiagnosticLogger(AppData));
     private static readonly Lazy<ScanRootStore> ScanRootsInstance = new(() => new ScanRootStore(AppData, Logger));
-    private static readonly Lazy<InstallationDiscoveryScanner> ScannerInstance = new(() => new InstallationDiscoveryScanner(new SystemFileVersionInfoProvider(), Logger));
+    private static readonly Lazy<GameNameCatalog> GameNamesInstance = new(() => new GameNameCatalog());
+    private static readonly Lazy<InstallationDiscoveryScanner> ScannerInstance = new(() => new InstallationDiscoveryScanner(new SystemFileVersionInfoProvider(), Logger, GameNamesInstance.Value));
+    private static readonly HttpClient GameMasterClient = CreateGameMasterClient();
     private static readonly Lazy<IInstallationCatalog> InstallationsInstance = new(() => new InstallationCatalog(ScanRoots, Scanner));
     private static readonly Lazy<IIniFileService> IniFilesInstance = new(() => new IniFileService());
     private static readonly Lazy<OptiSchemaResolver> SchemasInstance = new(() => new OptiSchemaResolver());
@@ -39,6 +42,29 @@ public static class AppServices
     public static ISourceCommentVisibilityStore SourceComments => SourceCommentsInstance.Value;
     public static IUserPresetStore Presets => PresetsInstance.Value;
     public static IBuiltInPresetProvider BuiltInPresets => BuiltInPresetsInstance.Value;
+
+    public static async Task RefreshGameNamesAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var response = await GameMasterClient.GetAsync("https://opticlick-public-r2.onehoon.workers.dev/v1/game-master", cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            GameNamesInstance.Value.Replace(GameNameCatalog.ParseGameMasterJson(json));
+            Logger.Info("Remote game master catalog refreshed.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            Logger.Error("Remote game master catalog refresh failed; using the embedded catalog.", ex);
+        }
+    }
+
+    private static HttpClient CreateGameMasterClient()
+    {
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("OptiClick", "3rdparty"));
+        return client;
+    }
 
     public static async Task<IReadOnlyList<PresetDefinition>> LoadPresetsAsync()
     {

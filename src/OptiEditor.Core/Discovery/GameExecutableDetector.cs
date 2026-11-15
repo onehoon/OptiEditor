@@ -20,23 +20,24 @@ public static class GameExecutableDetector
         "BugSplatHD64.exe",
         "BsSndRpt64.exe",
         "crs-video.exe",
-        "launcher.exe"
+        "launcher.exe",
+        "repair.exe"
     };
 
     public static bool IsExcluded(string? path) =>
         !string.IsNullOrWhiteSpace(path) && ExcludedFileNames.Contains(System.IO.Path.GetFileName(path));
 
-    public static GameExecutable Select(IEnumerable<GameExecutableCandidate> candidates)
+    public static GameExecutable Select(IEnumerable<GameExecutableCandidate> candidates, IGameNameCatalog? catalog = null, IEnumerable<string>? availableFileNames = null)
     {
         var selected = candidates
             .Where(x => !IsExcluded(x.Path))
-            .OrderByDescending(x => GameMasterNameMap.Find(x.Path) is not null)
+            .OrderByDescending(x => catalog?.Find(x.Path, availableFileNames) is not null || GameMasterNameMap.Find(x.Path) is not null)
             .ThenByDescending(x => !string.IsNullOrWhiteSpace(x.ProductName))
             .ThenByDescending(x => x.Length)
             .ThenBy(x => System.IO.Path.GetFileName(x.Path), StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
         if (selected is null) return new(null, null, "Unknown Game");
         var fileName = System.IO.Path.GetFileName(selected.Path);
-        return new(selected.Path, fileName, GameMasterNameMap.Find(fileName) ?? (string.IsNullOrWhiteSpace(selected.ProductName) ? System.IO.Path.GetFileNameWithoutExtension(fileName) : selected.ProductName.Trim()));
+        return new(selected.Path, fileName, catalog?.Find(fileName, availableFileNames) ?? GameMasterNameMap.Find(fileName) ?? (string.IsNullOrWhiteSpace(selected.ProductName) ? System.IO.Path.GetFileNameWithoutExtension(fileName) : selected.ProductName.Trim()));
     }
 }

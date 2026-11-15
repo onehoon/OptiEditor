@@ -26,6 +26,7 @@ public sealed class DiscoveryTests
     [InlineData("BsSndRpt64.exe")]
     [InlineData("crs-video.exe")]
     [InlineData("launcher.exe")]
+    [InlineData("repair.exe")]
     [InlineData("unitycrashhandler64.EXE")]
     public void Known_non_game_executables_are_excluded(string name) => Assert.True(GameExecutableDetector.IsExcluded(name));
 
@@ -48,6 +49,40 @@ public sealed class DiscoveryTests
     {
         Assert.Null(GameMasterNameMap.Find("WHGameArm.dll"));
         Assert.Equal("Kingdom Come: Deliverance II", GameMasterNameMap.Find("KingdomCome.exe"));
+    }
+
+    [Fact]
+    public void Runtime_game_master_parser_matches_required_files_and_uses_english_names()
+    {
+        var entries = GameNameCatalog.ParseGameMasterJson("""
+            [
+              {"game_name_en":"Shared Game","match_exe":"game.exe|marker.dll"},
+              {"game_name_en":"More Specific Game","match_exe":"game.exe|marker.dll|specific.dll"}
+            ]
+            """);
+        var catalog = new GameNameCatalog();
+        catalog.Replace(entries);
+
+        Assert.Equal("Shared Game", catalog.Find("game.exe", ["game.exe", "marker.dll"]));
+        Assert.Equal("More Specific Game", catalog.Find("game.exe", ["game.exe", "marker.dll", "specific.dll"]));
+        Assert.Null(catalog.Find("marker.dll", ["game.exe", "marker.dll"]));
+
+        var selected = GameExecutableDetector.Select(
+            [new("C:\\game.exe", 1, "Unrelated Product")],
+            catalog,
+            ["game.exe", "marker.dll"]);
+        Assert.Equal("Shared Game", selected.DisplayName);
+    }
+
+    [Fact]
+    public void Remote_game_name_wins_over_embedded_name_and_embedded_name_remains_fallback()
+    {
+        var embedded = GameMasterNameMap.Entries.First();
+        var catalog = new GameNameCatalog();
+        catalog.Replace([new("Remote replacement", [embedded.Key])]);
+
+        Assert.Equal("Remote replacement", catalog.Find(embedded.Key));
+        Assert.Equal("Kingdom Come: Deliverance II", catalog.Find("KingdomCome.exe"));
     }
 
     [Theory]
