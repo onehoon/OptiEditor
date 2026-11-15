@@ -150,6 +150,40 @@ public sealed class SchemaTests
         Assert.Equal(["KPSS", "Splat", "Model 3", "Model 4", "Model 5", "Model 6"], networkModel.Options.Select(x => x.Label));
         Assert.True(networkModel.OptionsAreSuggestions);
         Assert.True(SettingValidator.Validate(networkModel, "6").IsValid);
+
+        var xeFgRounding = schema.FindById("XeFG.RoundingDMFG")!;
+        Assert.Equal(0, xeFgRounding.Minimum);
+        Assert.Equal(2, xeFgRounding.Maximum);
+        Assert.True(SettingValidator.Validate(xeFgRounding, "0").IsValid);
+        Assert.True(SettingValidator.Validate(xeFgRounding, "2").IsValid);
+        Assert.False(SettingValidator.Validate(xeFgRounding, "-1").IsValid);
+        Assert.False(SettingValidator.Validate(xeFgRounding, "3").IsValid);
+
+        var xeFgOverride = schema.FindById("XeFG.OverrideInterpolationCount")!;
+        Assert.Equal(0, xeFgOverride.Minimum);
+        Assert.Equal(5, xeFgOverride.Maximum);
+        Assert.True(SettingValidator.Validate(xeFgOverride, "0").IsValid);
+        Assert.True(SettingValidator.Validate(xeFgOverride, "5").IsValid);
+        Assert.False(SettingValidator.Validate(xeFgOverride, "-1").IsValid);
+        Assert.False(SettingValidator.Validate(xeFgOverride, "6").IsValid);
+
+        var dlssgOverride = schema.FindById("DLSSG.OverrideInterpolationCount")!;
+        Assert.Equal(0, dlssgOverride.Minimum);
+        Assert.Equal(6, dlssgOverride.Maximum);
+        Assert.True(SettingValidator.Validate(dlssgOverride, "0").IsValid);
+        Assert.True(SettingValidator.Validate(dlssgOverride, "6").IsValid);
+        Assert.False(SettingValidator.Validate(dlssgOverride, "-1").IsValid);
+        Assert.False(SettingValidator.Validate(dlssgOverride, "7").IsValid);
+        Assert.Null(schema.FindById("DLSSG.InterpolationCountOverride"));
+
+        var xeFgTarget = schema.FindById("XeFG.FramerateTargetDMFG")!;
+        Assert.Equal(SettingValueKind.Double, xeFgTarget.ValueKind);
+        Assert.Equal(10, xeFgTarget.Minimum);
+        Assert.Null(xeFgTarget.Maximum);
+        Assert.True(SettingValidator.Validate(xeFgTarget, "10").IsValid);
+        Assert.True(SettingValidator.Validate(xeFgTarget, "120").IsValid);
+        Assert.False(SettingValidator.Validate(xeFgTarget, "9.99").IsValid);
+
         var upscalerBackend = schema.FindById("FSR.UpscalerIndex")!;
         Assert.Equal(SettingValueKind.Enum, upscalerBackend.ValueKind);
         Assert.Equal(["FSR 4.0.2", "FSR 3.1.5", "FSR 2.3.4"], upscalerBackend.Options.Select(x => x.Label));
