@@ -5,7 +5,7 @@ namespace OptiEditor.Core.Discovery;
 
 public sealed record DiscoveryResult(IReadOnlyList<OptiInstallation> Installations, ScanSummary Summary);
 
-public sealed class InstallationDiscoveryScanner(IFileVersionInfoProvider versionInfo, IDiagnosticLogger logger)
+public sealed class InstallationDiscoveryScanner(IFileVersionInfoProvider versionInfo, IDiagnosticLogger logger, IGameNameCatalog? gameNames = null)
 {
     public Task<DiscoveryResult> ScanAsync(IEnumerable<ScanRoot> roots, CancellationToken cancellationToken = default) =>
         Task.Run(() => Scan(roots, cancellationToken), cancellationToken);
@@ -134,13 +134,17 @@ public sealed class InstallationDiscoveryScanner(IFileVersionInfoProvider versio
     private GameExecutable DetectGameExecutable(string directory, ref int errors)
     {
         var candidates = new List<GameExecutableCandidate>();
+        var availableFileNames = new List<string>();
+        try { availableFileNames.AddRange(Directory.EnumerateFiles(directory, "*", SearchOption.TopDirectoryOnly).Select(Path.GetFileName).OfType<string>()); }
+        catch (Exception ex) when (IsExpectedFileSystemError(ex)) { errors++; logger.Error($"Game file enumeration failed: {directory}", ex); }
         try { foreach (var path in Directory.EnumerateFiles(directory, "*.exe", SearchOption.TopDirectoryOnly))
         {
+            if (GameExecutableDetector.IsExcluded(path)) continue;
             try { var metadata = versionInfo.Read(path); candidates.Add(new(path, new FileInfo(path).Length, metadata.ProductName)); }
             catch (Exception ex) when (IsExpectedFileSystemError(ex)) { errors++; logger.Error($"Game EXE detection failed: {path}", ex); }
         } }
         catch (Exception ex) when (IsExpectedFileSystemError(ex)) { errors++; logger.Error($"Game EXE enumeration failed: {directory}", ex); }
-        return GameExecutableDetector.Select(candidates);
+        return GameExecutableDetector.Select(candidates, gameNames, availableFileNames);
     }
 
     private static bool IsExpectedFileSystemError(Exception ex) => ex is UnauthorizedAccessException or IOException or ArgumentException or NotSupportedException or System.Security.SecurityException;

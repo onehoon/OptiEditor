@@ -96,7 +96,11 @@ public partial class App : Application
 
     private static async Task StartInstallationScanAsync()
     {
-        try { await OptiEditor.App.Services.AppServices.Installations.ScanAllAsync(); }
+        try
+        {
+            await OptiEditor.App.Services.AppServices.RefreshGameNamesAsync();
+            await OptiEditor.App.Services.AppServices.Installations.ScanAllAsync();
+        }
         catch (Exception ex) { OptiEditor.App.Services.AppServices.Logger.Error("Startup installation scan failed.", ex); }
     }
 }
